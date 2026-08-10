@@ -19,6 +19,12 @@ data object FilesRoute
 @Serializable
 data object SettingsRoute
 
+@Serializable
+data class CategoryFilesRoute(val categoryId: String)
+
+@Serializable
+data object FoldersRoute
+
 enum class AppDestination(
     val route: Any,
     val routeClass: KClass<*>,

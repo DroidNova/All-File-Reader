@@ -15,6 +15,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.findStartDestination
 import com.droidnova.allfilereader.ui.components.AppBottomNavigation
 import com.droidnova.allfilereader.ui.screens.files.FilesScreen
+import com.droidnova.allfilereader.ui.screens.category.CategoryFilesScreen
+import com.droidnova.allfilereader.ui.screens.folders.FoldersScreen
 import com.droidnova.allfilereader.ui.screens.home.HomeScreen
 import com.droidnova.allfilereader.ui.screens.settings.SettingsScreen
 
@@ -24,26 +26,31 @@ fun AllFileReaderApp() {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = backStackEntry?.destination
 
+    val isRootDestination = AppDestination.entries.any { destination ->
+        currentDestination?.hierarchy?.any { it.hasRoute(destination.routeClass) } == true
+    }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         bottomBar = {
-            AppBottomNavigation(
-                destinations = AppDestination.entries,
-                isSelected = { destination ->
-                    currentDestination?.hierarchy?.any {
-                        it.hasRoute(destination.routeClass)
-                    } == true
-                },
-                onDestinationSelected = { destination ->
-                    navController.navigate(destination.route) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
+            if (isRootDestination) {
+                AppBottomNavigation(
+                    destinations = AppDestination.entries,
+                    isSelected = { destination ->
+                        currentDestination?.hierarchy?.any {
+                            it.hasRoute(destination.routeClass)
+                        } == true
+                    },
+                    onDestinationSelected = { destination ->
+                        navController.navigate(destination.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
                         }
-                        launchSingleTop = true
-                        restoreState = true
                     }
-                }
-            )
+                )
+            }
         }
     ) { innerPadding ->
         NavHost(
@@ -53,9 +60,24 @@ fun AllFileReaderApp() {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            composable<HomeRoute> { HomeScreen() }
-            composable<FilesRoute> { FilesScreen() }
+            composable<HomeRoute> {
+                HomeScreen(
+                    onCategorySelected = { categoryId ->
+                        navController.navigate(CategoryFilesRoute(categoryId))
+                    },
+                    onFoldersSelected = { navController.navigate(FoldersRoute) }
+                )
+            }
+            composable<FilesRoute> {
+                FilesScreen(onChooseFolder = { navController.navigate(FoldersRoute) })
+            }
             composable<SettingsRoute> { SettingsScreen() }
+            composable<CategoryFilesRoute> {
+                CategoryFilesScreen(onBack = { navController.popBackStack() })
+            }
+            composable<FoldersRoute> {
+                FoldersScreen(onNavigateHome = { navController.popBackStack() })
+            }
         }
     }
 }

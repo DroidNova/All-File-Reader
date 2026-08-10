@@ -4,6 +4,8 @@ import android.content.ContentResolver
 import android.content.Context
 import com.droidnova.allfilereader.data.repository.MediaStoreDocumentRepository
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
+import com.droidnova.allfilereader.data.repository.SafFolderRepository
+import com.droidnova.allfilereader.domain.repository.FolderRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -20,6 +22,10 @@ abstract class DocumentModule {
     abstract fun bindDocumentRepository(
         implementation: MediaStoreDocumentRepository
     ): DocumentRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFolderRepository(implementation: SafFolderRepository): FolderRepository
 
     companion object {
         @Provides

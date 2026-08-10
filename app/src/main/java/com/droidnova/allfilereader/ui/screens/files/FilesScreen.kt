@@ -36,9 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,7 +57,10 @@ import com.droidnova.allfilereader.data.permission.RequiredMediaPermission
 import com.droidnova.allfilereader.ui.components.DocumentFileRow
 
 @Composable
-fun FilesScreen(viewModel: FilesViewModel = hiltViewModel()) {
+fun FilesScreen(
+    onChooseFolder: () -> Unit,
+    viewModel: FilesViewModel = hiltViewModel()
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
@@ -71,23 +72,6 @@ fun FilesScreen(viewModel: FilesViewModel = hiltViewModel()) {
         viewModel.onPermissionResult(granted)
     }
     val snackbarHostState = remember { SnackbarHostState() }
-    val folderMessage = stringResource(R.string.folder_access_added)
-    var folderSelectionCount by rememberSaveable { mutableIntStateOf(0) }
-    val folderLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri != null) {
-            try {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-                folderSelectionCount++
-            } catch (_: SecurityException) {
-                // No success message is shown when the provider cannot persist the grant.
-            }
-        }
-    }
 
     FilesScreenContent(
         uiState = uiState,
@@ -111,14 +95,10 @@ fun FilesScreen(viewModel: FilesViewModel = hiltViewModel()) {
                 )
             )
         },
-        onChooseFolder = { folderLauncher.launch(null) },
+        onChooseFolder = onChooseFolder,
         onFileClick = {},
         modifier = Modifier.fillMaxSize()
     )
-
-    LaunchedEffect(folderSelectionCount) {
-        if (folderSelectionCount > 0) snackbarHostState.showSnackbar(folderMessage)
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
