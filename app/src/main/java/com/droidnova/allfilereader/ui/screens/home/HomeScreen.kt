@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.droidnova.allfilereader.R
+import com.droidnova.allfilereader.ui.components.DocumentFileRow
 
 private data class DocumentCategory(
     @param:StringRes val labelResId: Int,
@@ -111,11 +112,17 @@ internal fun HomeScreenContent(
 
             when (uiState.selectedTab) {
                 HomeTab.Recent -> {
-                    EmptyState(
-                        icon = Icons.Outlined.Draft,
-                        title = stringResource(R.string.no_recent_files),
-                        supportingText = stringResource(R.string.no_recent_files_supporting_text)
-                    )
+                    if (uiState.recentDocuments.isEmpty()) {
+                        EmptyState(
+                            icon = Icons.Outlined.Draft,
+                            title = stringResource(R.string.no_recent_files),
+                            supportingText = stringResource(R.string.no_recent_files_supporting_text)
+                        )
+                    } else {
+                        uiState.recentDocuments.forEach { document ->
+                            DocumentFileRow(document = document, onClick = {})
+                        }
+                    }
                 }
 
                 HomeTab.Bookmarks -> {
