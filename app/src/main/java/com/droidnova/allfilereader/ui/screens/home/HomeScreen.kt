@@ -40,9 +40,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,10 +50,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.droidnova.allfilereader.R
-
-private const val RECENT_TAB_INDEX = 0
-private const val BOOKMARKS_TAB_INDEX = 1
 
 private data class DocumentCategory(
     @param:StringRes val labelResId: Int,
@@ -64,11 +60,22 @@ private data class DocumentCategory(
     val color: Color
 )
 
+@Composable
+fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    HomeScreenContent(
+        uiState = uiState,
+        onTabSelected = viewModel::onTabSelected
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen() {
-    var selectedTabIndex by rememberSaveable { mutableIntStateOf(RECENT_TAB_INDEX) }
-
+internal fun HomeScreenContent(
+    uiState: HomeUiState,
+    onTabSelected: (HomeTab) -> Unit
+) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = { HomeTopAppBar() }
@@ -83,31 +90,41 @@ fun HomeScreen() {
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp)
             )
 
-            PrimaryTabRow(selectedTabIndex = selectedTabIndex) {
-                Tab(
-                    selected = selectedTabIndex == RECENT_TAB_INDEX,
-                    onClick = { selectedTabIndex = RECENT_TAB_INDEX },
-                    text = { Text(text = stringResource(R.string.recent)) }
-                )
-                Tab(
-                    selected = selectedTabIndex == BOOKMARKS_TAB_INDEX,
-                    onClick = { selectedTabIndex = BOOKMARKS_TAB_INDEX },
-                    text = { Text(text = stringResource(R.string.bookmarks)) }
-                )
+            PrimaryTabRow(selectedTabIndex = uiState.selectedTab.ordinal) {
+                HomeTab.entries.forEach { tab ->
+                    Tab(
+                        selected = uiState.selectedTab == tab,
+                        onClick = { onTabSelected(tab) },
+                        text = {
+                            Text(
+                                text = stringResource(
+                                    when (tab) {
+                                        HomeTab.Recent -> R.string.recent
+                                        HomeTab.Bookmarks -> R.string.bookmarks
+                                    }
+                                )
+                            )
+                        }
+                    )
+                }
             }
 
-            if (selectedTabIndex == RECENT_TAB_INDEX) {
-                EmptyState(
-                    icon = Icons.Outlined.Draft,
-                    title = stringResource(R.string.no_recent_files),
-                    supportingText = stringResource(R.string.no_recent_files_supporting_text)
-                )
-            } else {
-                EmptyState(
-                    icon = Icons.Outlined.BookmarkBorder,
-                    title = stringResource(R.string.no_bookmarks_yet),
-                    supportingText = stringResource(R.string.no_bookmarks_supporting_text)
-                )
+            when (uiState.selectedTab) {
+                HomeTab.Recent -> {
+                    EmptyState(
+                        icon = Icons.Outlined.Draft,
+                        title = stringResource(R.string.no_recent_files),
+                        supportingText = stringResource(R.string.no_recent_files_supporting_text)
+                    )
+                }
+
+                HomeTab.Bookmarks -> {
+                    EmptyState(
+                        icon = Icons.Outlined.BookmarkBorder,
+                        title = stringResource(R.string.no_bookmarks_yet),
+                        supportingText = stringResource(R.string.no_bookmarks_supporting_text)
+                    )
+                }
             }
         }
     }
