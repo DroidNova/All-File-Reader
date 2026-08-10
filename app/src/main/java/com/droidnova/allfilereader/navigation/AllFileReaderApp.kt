@@ -8,14 +8,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.findStartDestination
 import com.droidnova.allfilereader.ui.components.AppBottomNavigation
-import com.droidnova.allfilereader.ui.screens.files.FilesScreen
 import com.droidnova.allfilereader.ui.screens.category.CategoryFilesScreen
+import com.droidnova.allfilereader.ui.screens.files.FilesScreen
 import com.droidnova.allfilereader.ui.screens.folders.FoldersScreen
 import com.droidnova.allfilereader.ui.screens.home.HomeScreen
 import com.droidnova.allfilereader.ui.screens.settings.SettingsScreen
