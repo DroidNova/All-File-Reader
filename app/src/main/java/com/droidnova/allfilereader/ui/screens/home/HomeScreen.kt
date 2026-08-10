@@ -54,20 +54,28 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.droidnova.allfilereader.R
 import com.droidnova.allfilereader.ui.components.DocumentFileRow
+import com.droidnova.allfilereader.ui.screens.category.FileCategory
 
 private data class DocumentCategory(
     @param:StringRes val labelResId: Int,
     val icon: ImageVector,
-    val color: Color
+    val color: Color,
+    val category: FileCategory?
 )
 
 @Composable
-fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
+fun HomeScreen(
+    onCategorySelected: (String) -> Unit,
+    onFoldersSelected: () -> Unit,
+    viewModel: HomeViewModel = hiltViewModel()
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     HomeScreenContent(
         uiState = uiState,
-        onTabSelected = viewModel::onTabSelected
+        onTabSelected = viewModel::onTabSelected,
+        onCategorySelected = onCategorySelected,
+        onFoldersSelected = onFoldersSelected
     )
 }
 
@@ -75,7 +83,9 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
 @Composable
 internal fun HomeScreenContent(
     uiState: HomeUiState,
-    onTabSelected: (HomeTab) -> Unit
+    onTabSelected: (HomeTab) -> Unit,
+    onCategorySelected: (String) -> Unit,
+    onFoldersSelected: () -> Unit
 ) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -88,6 +98,8 @@ internal fun HomeScreenContent(
                 .verticalScroll(rememberScrollState())
         ) {
             CategoryGrid(
+                onCategorySelected = onCategorySelected,
+                onFoldersSelected = onFoldersSelected,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp)
             )
 
@@ -166,17 +178,21 @@ private fun HomeTopAppBar() {
 }
 
 @Composable
-private fun CategoryGrid(modifier: Modifier = Modifier) {
+private fun CategoryGrid(
+    onCategorySelected: (String) -> Unit,
+    onFoldersSelected: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val colors = MaterialTheme.colorScheme
     val categories = listOf(
-        DocumentCategory(R.string.all_files, Icons.Default.InsertDriveFile, colors.primary),
-        DocumentCategory(R.string.pdf, Icons.Default.PictureAsPdf, colors.error),
-        DocumentCategory(R.string.word, Icons.Default.Description, colors.secondary),
-        DocumentCategory(R.string.excel, Icons.Default.TableChart, colors.tertiary),
-        DocumentCategory(R.string.powerpoint, Icons.Default.Slideshow, colors.error),
-        DocumentCategory(R.string.text, Icons.Default.TextSnippet, colors.onSurfaceVariant),
-        DocumentCategory(R.string.images, Icons.Default.Image, colors.primary),
-        DocumentCategory(R.string.folders, Icons.Default.Folder, colors.tertiary)
+        DocumentCategory(R.string.all_files, Icons.Default.InsertDriveFile, colors.primary, FileCategory.All),
+        DocumentCategory(R.string.pdf, Icons.Default.PictureAsPdf, colors.error, FileCategory.Pdf),
+        DocumentCategory(R.string.word, Icons.Default.Description, colors.secondary, FileCategory.Word),
+        DocumentCategory(R.string.excel, Icons.Default.TableChart, colors.tertiary, FileCategory.Excel),
+        DocumentCategory(R.string.powerpoint, Icons.Default.Slideshow, colors.error, FileCategory.PowerPoint),
+        DocumentCategory(R.string.text, Icons.Default.TextSnippet, colors.onSurfaceVariant, FileCategory.Text),
+        DocumentCategory(R.string.images, Icons.Default.Image, colors.primary, FileCategory.Images),
+        DocumentCategory(R.string.folders, Icons.Default.Folder, colors.tertiary, null)
     )
 
     Column(
@@ -193,7 +209,9 @@ private fun CategoryGrid(modifier: Modifier = Modifier) {
                         icon = category.icon,
                         label = stringResource(category.labelResId),
                         color = category.color,
-                        onClick = {},
+                        onClick = {
+                            category.category?.let { onCategorySelected(it.id) } ?: onFoldersSelected()
+                        },
                         modifier = Modifier.weight(1f)
                     )
                 }

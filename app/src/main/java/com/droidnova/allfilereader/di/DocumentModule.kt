@@ -3,13 +3,15 @@ package com.droidnova.allfilereader.di
 import android.content.ContentResolver
 import android.content.Context
 import com.droidnova.allfilereader.data.repository.MediaStoreDocumentRepository
+import com.droidnova.allfilereader.data.repository.SafFolderRepository
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
+import com.droidnova.allfilereader.domain.repository.FolderRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.components.SingletonComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 @Module
@@ -20,6 +22,10 @@ abstract class DocumentModule {
     abstract fun bindDocumentRepository(
         implementation: MediaStoreDocumentRepository
     ): DocumentRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFolderRepository(implementation: SafFolderRepository): FolderRepository
 
     companion object {
         @Provides
