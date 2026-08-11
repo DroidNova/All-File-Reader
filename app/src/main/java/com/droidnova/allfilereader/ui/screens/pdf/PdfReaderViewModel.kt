@@ -37,7 +37,7 @@ class PdfReaderViewModel @Inject constructor(
     private val pdfDocument: NativePdfDocument,
     private val permissionManager: MediaPermissionManager
 ) : ViewModel() {
-    private val documentId: String = savedStateHandle["documentId"].orEmpty()
+    private val documentId: String = savedStateHandle.get<String>("documentId").orEmpty()
     private val _uiState=MutableStateFlow(PdfReaderUiState())
     val uiState:StateFlow<PdfReaderUiState> = _uiState.asStateFlow()
     private val renderJobs=mutableMapOf<Int,Job>()
