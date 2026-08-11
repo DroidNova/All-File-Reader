@@ -7,6 +7,7 @@ import android.os.storage.StorageManager
 import com.droidnova.allfilereader.domain.model.DocumentCategory
 import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.model.DocumentFile
+import com.droidnova.allfilereader.domain.model.DocumentIds
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -30,13 +31,34 @@ class MediaStoreDocumentRepository @Inject constructor(
     private var cache: List<DocumentFile>? = null
     private val _documents = MutableStateFlow<List<DocumentFile>>(emptyList())
     override val documents: StateFlow<List<DocumentFile>> = _documents.asStateFlow()
+    private val knownDocuments = LinkedHashMap<String, DocumentFile>()
 
     override suspend fun getDocuments(forceRefresh: Boolean): List<DocumentFile> = scanMutex.withLock {
         if (!forceRefresh) cache?.let { return@withLock it }
         val result = withContext(Dispatchers.IO) { scan() }
         cache = result
+        synchronized(knownDocuments) {
+            knownDocuments.putAll(result.associateBy(DocumentFile::id))
+        }
         _documents.value = result
         result
+    }
+
+    override fun rememberDocument(document: DocumentFile) {
+        synchronized(knownDocuments) { knownDocuments[document.id] = document }
+    }
+
+    override suspend fun resolveDocument(id: String): DocumentFile? {
+        val known = synchronized(knownDocuments) { knownDocuments[id] }
+            ?: getDocuments(forceRefresh = false).firstOrNull { it.id == id }
+        return withContext(Dispatchers.IO) {
+            known?.takeIf { document ->
+            runCatching {
+                val uri = java.net.URI(document.uri)
+                uri.scheme != "file" || File(uri).isFile
+            }.getOrDefault(true)
+            }
+        }
     }
 
     private suspend fun scan(): List<DocumentFile> {
@@ -61,7 +83,7 @@ class MediaStoreDocumentRepository @Inject constructor(
                 if (category !in supported) continue
                 val path = runCatching { file.canonicalPath }.getOrNull() ?: continue
                 found[path] = DocumentFile(
-                    id = path, displayName = file.name, uri = file.toURI().toString(),
+                    id = DocumentIds.fromStorageLocation(path), displayName = file.name, uri = file.toURI().toString(),
                     mimeType = null, extension = extension, sizeBytes = runCatching { file.length() }.getOrDefault(-1),
                     lastModifiedEpochMillis = runCatching { file.lastModified() }.getOrDefault(0),
                     category = category, isBookmarked = false

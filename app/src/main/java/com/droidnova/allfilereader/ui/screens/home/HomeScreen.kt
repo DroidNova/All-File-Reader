@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,5 +49,17 @@ private data class HomeCategory(@StringRes val label:Int,val icon:ImageVector,va
   }
  }
 }
-@Composable private fun CategoryCard(card:HomeCategory,count:String,onClick:()->Unit){val label=stringResource(card.label);ElevatedCard(onClick=onClick,modifier=Modifier.fillMaxWidth().heightIn(min=128.dp)){Column(Modifier.fillMaxSize().padding(16.dp),verticalArrangement=Arrangement.SpaceBetween){Icon(card.icon,label,tint=card.color,modifier=Modifier.size(32.dp));Column{Text(label,style=MaterialTheme.typography.titleMedium,maxLines=2,overflow=TextOverflow.Ellipsis);Text(count,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
+@Composable private fun CategoryCard(card:HomeCategory,count:String,onClick:()->Unit){val label=stringResource(card.label);ElevatedCard(onClick=onClick,modifier=Modifier.fillMaxWidth().heightIn(min=88.dp)){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){Icon(card.icon,label,tint=card.color,modifier=Modifier.size(32.dp));Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(label,style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis);Text(count,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
 @Composable fun PermissionCard(onAllow:()->Unit,onNotNow:()->Unit){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){Text(stringResource(R.string.all_files_access),style=MaterialTheme.typography.titleMedium);Text(stringResource(R.string.all_files_access_explanation));Row{Button(onClick=onAllow){Text(stringResource(R.string.allow_access))};TextButton(onClick=onNotNow){Text(stringResource(R.string.not_now))}}}}}
+
+@Preview(showBackground = true, widthDp = 180)
+@Composable
+private fun CategoryCardPreview() {
+    MaterialTheme {
+        CategoryCard(
+            card = HomeCategory(R.string.pdf, Icons.Default.PictureAsPdf, MaterialTheme.colorScheme.error),
+            count = "39",
+            onClick = {}
+        )
+    }
+}

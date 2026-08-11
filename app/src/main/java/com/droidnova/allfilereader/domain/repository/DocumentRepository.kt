@@ -7,4 +7,8 @@ interface DocumentRepository {
     val documents: StateFlow<List<DocumentFile>>
 
     suspend fun getDocuments(forceRefresh: Boolean = false): List<DocumentFile>
+
+    fun rememberDocument(document: DocumentFile)
+
+    suspend fun resolveDocument(id: String): DocumentFile?
 }
