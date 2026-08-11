@@ -1,83 +1,19 @@
 package com.droidnova.allfilereader.navigation
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.currentBackStackEntryAsState
-import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.*
 import com.droidnova.allfilereader.ui.components.AppBottomNavigation
 import com.droidnova.allfilereader.ui.screens.category.CategoryFilesScreen
+import com.droidnova.allfilereader.ui.screens.favorites.FavoritesScreen
 import com.droidnova.allfilereader.ui.screens.files.FilesScreen
 import com.droidnova.allfilereader.ui.screens.folders.FoldersScreen
 import com.droidnova.allfilereader.ui.screens.home.HomeScreen
 import com.droidnova.allfilereader.ui.screens.settings.SettingsScreen
 
-@Composable
-fun AllFileReaderApp() {
-    val navController = rememberNavController()
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val currentDestination = backStackEntry?.destination
-
-    val isRootDestination = AppDestination.entries.any { destination ->
-        currentDestination?.hierarchy?.any { it.hasRoute(destination.routeClass) } == true
-    }
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        bottomBar = {
-            if (isRootDestination) {
-                AppBottomNavigation(
-                    destinations = AppDestination.entries,
-                    isSelected = { destination ->
-                        currentDestination?.hierarchy?.any {
-                            it.hasRoute(destination.routeClass)
-                        } == true
-                    },
-                    onDestinationSelected = { destination ->
-                        navController.navigate(destination.route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
-                            }
-                            launchSingleTop = true
-                            restoreState = true
-                        }
-                    }
-                )
-            }
-        }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = HomeRoute,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-        ) {
-            composable<HomeRoute> {
-                HomeScreen(
-                    onCategorySelected = { categoryId ->
-                        navController.navigate(CategoryFilesRoute(categoryId))
-                    },
-                    onFoldersSelected = { navController.navigate(FoldersRoute) }
-                )
-            }
-            composable<FilesRoute> {
-                FilesScreen(onChooseFolder = { navController.navigate(FoldersRoute) })
-            }
-            composable<SettingsRoute> { SettingsScreen() }
-            composable<CategoryFilesRoute> {
-                CategoryFilesScreen(onBack = { navController.popBackStack() })
-            }
-            composable<FoldersRoute> {
-                FoldersScreen(onNavigateHome = { navController.popBackStack() })
-            }
-        }
-    }
-}
+@Composable fun AllFileReaderApp(){val nav=rememberNavController();val entry by nav.currentBackStackEntryAsState();val current=entry?.destination;val root=AppDestination.entries.any{d->current?.hierarchy?.any{it.hasRoute(d.routeClass)}==true};Scaffold(Modifier.fillMaxSize(),bottomBar={if(root)AppBottomNavigation(AppDestination.entries,{d->current?.hierarchy?.any{it.hasRoute(d.routeClass)}==true}){d->nav.navigate(d.route){popUpTo(nav.graph.findStartDestination().id){saveState=true};launchSingleTop=true;restoreState=true}}}){pad->NavHost(nav,HomeRoute,Modifier.fillMaxSize().padding(pad)){composable<HomeRoute>{HomeScreen({nav.navigate(CategoryFilesRoute(it))},{nav.navigate(DirectoriesRoute)},{nav.navigate(FavoritesRoute)})};composable<RecentRoute>{FilesScreen()};composable<SettingsRoute>{SettingsScreen()};composable<CategoryFilesRoute>{CategoryFilesScreen{nav.popBackStack()}};composable<DirectoriesRoute>{FoldersScreen{nav.popBackStack()}};composable<FavoritesRoute>{FavoritesScreen{nav.popBackStack()}}}}}

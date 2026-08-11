@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Slideshow
@@ -101,7 +100,6 @@ private fun DocumentCategory.icon(): ImageVector = when (this) {
     DocumentCategory.Excel -> Icons.Default.TableChart
     DocumentCategory.PowerPoint -> Icons.Default.Slideshow
     DocumentCategory.Text -> Icons.Default.TextSnippet
-    DocumentCategory.Image -> Icons.Default.Image
     DocumentCategory.Folder -> Icons.Default.Folder
     DocumentCategory.Other -> Icons.Default.InsertDriveFile
 }
@@ -112,7 +110,6 @@ private fun DocumentCategory.labelResId(): Int = when (this) {
     DocumentCategory.Excel -> R.string.document_type_excel
     DocumentCategory.PowerPoint -> R.string.document_type_powerpoint
     DocumentCategory.Text -> R.string.document_type_text
-    DocumentCategory.Image -> R.string.document_type_image
     DocumentCategory.Folder -> R.string.document_type_folder
     DocumentCategory.Other -> R.string.document_type_other
 }

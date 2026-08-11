@@ -4,7 +4,6 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.droidnova.allfilereader.data.permission.MediaPermissionManager
-import com.droidnova.allfilereader.data.permission.RequiredMediaPermission
 import com.droidnova.allfilereader.domain.model.DocumentCategory
 import com.droidnova.allfilereader.domain.model.DocumentFile
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
@@ -17,97 +16,23 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class FileCategory(val id: String) {
-    All("all"), Pdf("pdf"), Word("word"), Excel("excel"), PowerPoint("powerpoint"),
-    Text("text"), Images("images");
-
-    companion object {
-        fun fromId(id: String?): FileCategory = entries.firstOrNull { it.id == id } ?: All
-    }
-}
-
-sealed interface CategoryLoadState {
-    data object Loading : CategoryLoadState
-    data class Content(val documents: List<DocumentFile>) : CategoryLoadState
-    data object Empty : CategoryLoadState
-    data object Error : CategoryLoadState
-}
-
-data class CategoryFilesUiState(
-    val category: FileCategory,
-    val loadState: CategoryLoadState = CategoryLoadState.Loading,
-    val requiredPermission: RequiredMediaPermission? = null,
-    val permissionPromptDismissed: Boolean = false
-)
+enum class FileCategory(val id: String) { All("all"), Pdf("pdf"), Word("word"), Excel("excel"), PowerPoint("ppt"), Text("txt"); companion object { fun fromId(id: String?) = entries.firstOrNull { it.id == id } ?: All } }
+sealed interface CategoryLoadState { data object Loading: CategoryLoadState; data class Content(val documents: List<DocumentFile>): CategoryLoadState; data object Empty: CategoryLoadState; data object AccessRequired: CategoryLoadState; data object Error: CategoryLoadState }
+data class CategoryFilesUiState(val category: FileCategory, val loadState: CategoryLoadState = CategoryLoadState.Loading, val isRefreshing: Boolean = false, val permissionPromptDismissed: Boolean = false)
 
 @HiltViewModel
-class CategoryFilesViewModel @Inject constructor(
-    savedStateHandle: SavedStateHandle,
-    private val repository: DocumentRepository,
-    private val permissionManager: MediaPermissionManager
-) : ViewModel() {
+class CategoryFilesViewModel @Inject constructor(savedStateHandle: SavedStateHandle, private val repository: DocumentRepository, private val access: MediaPermissionManager): ViewModel() {
     private val category = FileCategory.fromId(savedStateHandle["categoryId"])
-    private val _uiState = MutableStateFlow(CategoryFilesUiState(category))
-    val uiState: StateFlow<CategoryFilesUiState> = _uiState.asStateFlow()
-    private var loadJob: Job? = null
-
-    init { loadFiles() }
-
-    fun refresh() = loadFiles(forceRefresh = true)
-    fun retry() = loadFiles(forceRefresh = true)
-
-    fun onPermissionResult(granted: Boolean) {
-        if (granted) loadFiles(forceRefresh = true)
-        else _uiState.value = _uiState.value.copy(permissionPromptDismissed = true)
-    }
-
-    fun dismissPermissionPrompt() {
-        _uiState.value = _uiState.value.copy(permissionPromptDismissed = true)
-    }
-
-    private fun loadFiles(forceRefresh: Boolean = false) {
-        if (loadJob?.isActive == true) return
-        loadJob = viewModelScope.launch {
-            val permissionGranted = permissionManager.isGranted()
-            val needsImages = category == FileCategory.Images || category == FileCategory.All
-            val requiredPermission = permissionManager.requiredPermission().takeIf {
-                !permissionGranted && (needsImages || !permissionManager.canQueryDocumentsWithoutPermission())
-            }
-            if (!permissionGranted && !permissionManager.canQueryDocumentsWithoutPermission()) {
-                _uiState.value = CategoryFilesUiState(category, CategoryLoadState.Empty, requiredPermission)
-                return@launch
-            }
-            _uiState.value = _uiState.value.copy(
-                loadState = CategoryLoadState.Loading,
-                requiredPermission = requiredPermission,
-                permissionPromptDismissed = false
-            )
-            try {
-                val documents = repository.getDocuments(
-                    includeImages = needsImages && permissionGranted,
-                    forceRefresh = forceRefresh
-                ).filter { document ->
-                    when (category) {
-                        FileCategory.All -> true
-                        FileCategory.Pdf -> document.category == DocumentCategory.Pdf
-                        FileCategory.Word -> document.category == DocumentCategory.Word
-                        FileCategory.Excel -> document.category == DocumentCategory.Excel
-                        FileCategory.PowerPoint -> document.category == DocumentCategory.PowerPoint
-                        FileCategory.Text -> document.category == DocumentCategory.Text
-                        FileCategory.Images -> document.category == DocumentCategory.Image
-                    }
-                }.sortedByDescending(DocumentFile::lastModifiedEpochMillis)
-                _uiState.value = CategoryFilesUiState(
-                    category = category,
-                    loadState = if (documents.isEmpty()) CategoryLoadState.Empty
-                    else CategoryLoadState.Content(documents),
-                    requiredPermission = requiredPermission
-                )
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Exception) {
-                _uiState.value = CategoryFilesUiState(category, CategoryLoadState.Error, requiredPermission)
-            }
-        }
-    }
+    private val _uiState = MutableStateFlow(CategoryFilesUiState(category)); val uiState: StateFlow<CategoryFilesUiState> = _uiState.asStateFlow(); private var job: Job? = null
+    init { load(false) }
+    fun refresh()=load(true); fun retry()=load(true)
+    fun onResume() { val granted = access.isGranted(); if (granted != (_uiState.value.loadState !is CategoryLoadState.AccessRequired)) load(true) }
+    fun dismissPermissionPrompt(){ _uiState.value=_uiState.value.copy(permissionPromptDismissed=true) }
+    private fun load(force:Boolean){ if(job?.isActive==true)return; job=viewModelScope.launch {
+        if(!access.isGranted()){_uiState.value=CategoryFilesUiState(category,CategoryLoadState.AccessRequired,permissionPromptDismissed=_uiState.value.permissionPromptDismissed);return@launch}
+        val old=(_uiState.value.loadState as? CategoryLoadState.Content)?.documents; _uiState.value=if(old==null) CategoryFilesUiState(category) else CategoryFilesUiState(category,CategoryLoadState.Content(old),force)
+        try { val docs=repository.getDocuments(force).filter { category==FileCategory.All || it.category==category.model() }; _uiState.value=CategoryFilesUiState(category,if(docs.isEmpty())CategoryLoadState.Empty else CategoryLoadState.Content(docs)) }
+        catch(c:CancellationException){throw c}catch(_:Exception){_uiState.value=CategoryFilesUiState(category,if(old==null)CategoryLoadState.Error else CategoryLoadState.Content(old))}
+    }}
 }
+private fun FileCategory.model()=when(this){FileCategory.Pdf->DocumentCategory.Pdf;FileCategory.Word->DocumentCategory.Word;FileCategory.Excel->DocumentCategory.Excel;FileCategory.PowerPoint->DocumentCategory.PowerPoint;FileCategory.Text->DocumentCategory.Text;FileCategory.All->DocumentCategory.Other}
