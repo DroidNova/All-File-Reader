@@ -1,0 +1,4 @@
+051ef503f2677d53159a388b7384e950eda41ea4e47a103e5e36f124d7faea40  docx-preview.min.js
+acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e  jszip.min.js
+0ed0b35bd10cb0d990fbecf7f1e05d113d785dfbbef8332e139fc10b84a4c3d7  LICENSE-docx-preview.txt
+566c953c6090b1218ca6217dd7359d45dde46581968586dc607d59a78af6a9c4  LICENSE-jszip.txt
