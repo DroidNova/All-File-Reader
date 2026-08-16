@@ -20,8 +20,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.res.stringResource
 import com.droidnova.allfilereader.R
-import com.droidnova.allfilereader.domain.model.DocumentCategory
 import com.droidnova.allfilereader.domain.model.DocumentFile
+import com.droidnova.allfilereader.domain.reader.DocumentReaderDestination
+import com.droidnova.allfilereader.domain.reader.DocumentReaderResolver
 import com.droidnova.allfilereader.ui.components.AppBottomNavigation
 import com.droidnova.allfilereader.ui.screens.category.CategoryFilesScreen
 import com.droidnova.allfilereader.ui.screens.favorites.FavoritesScreen
@@ -40,21 +41,21 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val unavailableMessage = stringResource(R.string.reader_unavailable)
-    val laterMessages = mapOf(
-        DocumentCategory.Word to stringResource(R.string.word_reader_later),
-        DocumentCategory.Excel to stringResource(R.string.excel_reader_later),
-        DocumentCategory.PowerPoint to stringResource(R.string.ppt_reader_later),
-        DocumentCategory.Text to stringResource(R.string.txt_reader_later),
-        DocumentCategory.Folder to stringResource(R.string.reader_unavailable),
-        DocumentCategory.Other to stringResource(R.string.reader_unavailable)
-    )
+    val textReaderMessage = stringResource(R.string.txt_reader_later)
+    val officeReaderMessage = stringResource(R.string.office_reader_later)
     val onDocumentClick: (DocumentFile) -> Unit = { document ->
         fileNavigationViewModel.remember(document)
-        if (document.category == DocumentCategory.Pdf) {
-            navController.navigate(PdfReaderRoute(document.id))
-        } else {
-            val message = laterMessages[document.category] ?: unavailableMessage
-            coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+        when (DocumentReaderResolver.resolve(document)) {
+            DocumentReaderDestination.Pdf -> navController.navigate(PdfReaderRoute(document.id))
+            DocumentReaderDestination.FutureText -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(textReaderMessage)
+            }
+            DocumentReaderDestination.FutureOffice -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(officeReaderMessage)
+            }
+            DocumentReaderDestination.Unsupported -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(unavailableMessage)
+            }
         }
     }
     val isRootDestination = AppDestination.entries.any { destination ->

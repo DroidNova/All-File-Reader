@@ -44,12 +44,21 @@ private data class HomeCategory(@StringRes val label:Int,val icon:ImageVector,va
     HomeCategory(R.string.directories,Icons.Default.Folder,c.tertiary,special="directories"),HomeCategory(R.string.favorites,Icons.Outlined.FavoriteBorder,c.primary,special="favorites"))
    LazyVerticalGrid(GridCells.Fixed(2),contentPadding=PaddingValues(16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     if(!state.hasAccess&&!state.permissionDismissed)item(span={androidx.compose.foundation.lazy.grid.GridItemSpan(2)}){PermissionCard(onAllow,onNotNow)}
-    items(cards,key={it.label}){card->CategoryCard(card,when{card.special=="directories"->stringResource(R.string.browse);card.special=="favorites"->"0";!state.hasAccess->"—";card.category==FileCategory.All->state.documents.size.toString();else->state.count(card.model).toString()}){when(card.special){"directories"->onDirectories();"favorites"->onFavorites();else->onCategory(card.category!!.id)}}}
+    items(cards,key={it.label}){card->
+     val countContent = when {
+      card.special=="directories" -> CategoryCountContent.Text(stringResource(R.string.browse))
+      card.special=="favorites" -> CategoryCountContent.Text("0")
+      state.counts is HomeCountState.Loading -> CategoryCountContent.Loading
+      else -> CategoryCountContent.Text(state.count(card.model)?.toString() ?: stringResource(R.string.count_unavailable))
+     }
+     CategoryCard(card,countContent){when(card.special){"directories"->onDirectories();"favorites"->onFavorites();else->onCategory(card.category!!.id)}}
+    }
    }
   }
  }
 }
-@Composable private fun CategoryCard(card:HomeCategory,count:String,onClick:()->Unit){val label=stringResource(card.label);ElevatedCard(onClick=onClick,modifier=Modifier.fillMaxWidth().heightIn(min=88.dp)){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){Icon(card.icon,label,tint=card.color,modifier=Modifier.size(32.dp));Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(label,style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis);Text(count,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
+private sealed interface CategoryCountContent { data object Loading:CategoryCountContent;data class Text(val value:String):CategoryCountContent }
+@Composable private fun CategoryCard(card:HomeCategory,count:CategoryCountContent,onClick:()->Unit){val label=stringResource(card.label);ElevatedCard(onClick=onClick,modifier=Modifier.fillMaxWidth().heightIn(min=88.dp)){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){Icon(card.icon,label,tint=card.color,modifier=Modifier.size(32.dp));Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(label,style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis);when(count){CategoryCountContent.Loading->CircularProgressIndicator(Modifier.size(14.dp),strokeWidth=2.dp);is CategoryCountContent.Text->Text(count.value,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}}
 @Composable fun PermissionCard(onAllow:()->Unit,onNotNow:()->Unit){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){Text(stringResource(R.string.all_files_access),style=MaterialTheme.typography.titleMedium);Text(stringResource(R.string.all_files_access_explanation));Row{Button(onClick=onAllow){Text(stringResource(R.string.allow_access))};TextButton(onClick=onNotNow){Text(stringResource(R.string.not_now))}}}}}
 
 @Preview(showBackground = true, widthDp = 180)
@@ -58,7 +67,7 @@ private fun CategoryCardPreview() {
     MaterialTheme {
         CategoryCard(
             card = HomeCategory(R.string.pdf, Icons.Default.PictureAsPdf, MaterialTheme.colorScheme.error),
-            count = "39",
+            count = CategoryCountContent.Text("39"),
             onClick = {}
         )
     }

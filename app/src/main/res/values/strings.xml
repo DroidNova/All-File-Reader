@@ -9,22 +9,16 @@
 <string name="unknown_file_info">Unknown</string><string name="document_type_pdf">PDF</string><string name="document_type_word">Word</string><string name="document_type_excel">Excel</string><string name="document_type_powerpoint">PowerPoint</string><string name="document_type_text">Text</string><string name="document_type_folder">Folder</string><string name="document_type_other">Other</string><string name="file_metadata">%1$s · %2$s · %3$s</string>
 <string name="folder">Folder</string><string name="storage_root">Storage root</string><string name="folder_is_empty">This folder is empty</string><string name="folder_is_empty_supporting_text">No accessible items were found in this folder.</string><string name="folder_error_title">Couldn’t load folder</string><string name="directory_access_denied">This location is unavailable or access is restricted. Return or try again.</string>
 <string name="no_favorites_yet">No favorites yet</string><string name="no_favorites_supporting_text">Files you add to favorites will appear here.</string>
-<string name="word_reader_later">Word reader will be added in a later step.</string>
-<string name="excel_reader_later">Excel reader will be added in a later step.</string>
-<string name="ppt_reader_later">PPT reader will be added in a later step.</string>
 <string name="txt_reader_later">TXT reader will be added in a later step.</string>
 <string name="reader_unavailable">A reader for this file type is not available yet.</string>
+<string name="office_reader_later">Office reader will be added in a later step.</string>
+<string name="count_unavailable">—</string>
 <string name="pdf_reader">PDF Reader</string>
-<string name="pdf_page_position">Page %1$d of %2$d</string>
-<string name="pdf_page_number">Page %1$d</string>
-<string name="pdf_page_content_description">PDF page %1$d</string>
-<string name="pdf_page_render_error">This page couldn’t be displayed.</string>
+<string name="pdf_search">Search PDF text</string>
 <string name="pdf_not_found">File not found</string>
 <string name="pdf_not_found_message">This PDF may have been moved, renamed, or deleted.</string>
 <string name="pdf_access_removed">Access removed</string>
 <string name="pdf_access_removed_message">This PDF is no longer accessible. Restore storage access and try again.</string>
-<string name="pdf_empty">No readable pages</string>
-<string name="pdf_empty_message">This PDF does not contain any readable pages.</string>
 <string name="pdf_unsupported">PDF can’t be opened</string>
 <string name="pdf_unsupported_message">This PDF may be damaged, password protected, or unsupported.</string>
 </resources>
