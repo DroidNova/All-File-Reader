@@ -32,6 +32,7 @@ import com.droidnova.allfilereader.ui.screens.folders.FoldersScreen
 import com.droidnova.allfilereader.ui.screens.home.HomeScreen
 import com.droidnova.allfilereader.ui.screens.settings.SettingsScreen
 import com.droidnova.allfilereader.ui.screens.pdf.PdfReaderScreen
+import com.droidnova.allfilereader.ui.screens.txt.TxtReaderScreen
 import kotlinx.coroutines.launch
 
 @Composable
@@ -42,14 +43,15 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val unavailableMessage = stringResource(R.string.reader_unavailable)
-    val textReaderMessage = stringResource(R.string.txt_reader_later)
     val officeReaderMessage = stringResource(R.string.office_reader_later)
     val onDocumentClick: (DocumentFile) -> Unit = { document ->
         fileNavigationViewModel.remember(document)
         when (DocumentReaderResolver.resolve(document)) {
-            DocumentReaderDestination.Pdf -> navController.navigate(PdfReaderRoute(document.id))
-            DocumentReaderDestination.FutureText -> coroutineScope.launch {
-                snackbarHostState.showSnackbar(textReaderMessage)
+            DocumentReaderDestination.Pdf -> navController.navigate(PdfReaderRoute(document.id)) {
+                launchSingleTop = true
+            }
+            DocumentReaderDestination.PlainText -> navController.navigate(TxtReaderRoute(document.id)) {
+                launchSingleTop = true
             }
             DocumentReaderDestination.FutureOffice -> coroutineScope.launch {
                 snackbarHostState.showSnackbar(officeReaderMessage)
@@ -136,6 +138,9 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
             }
             composable<PdfReaderRoute> {
                 PdfReaderScreen(onBack = { navController.popBackStack() })
+            }
+            composable<TxtReaderRoute> {
+                TxtReaderScreen(onBack = { navController.popBackStack() })
             }
         }
     }
