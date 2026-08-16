@@ -83,10 +83,24 @@ private fun WordBlockItem(block: WordBlock, images: Map<String, android.graphics
     }
 }
 
-@Composable private fun WordTable(rows: List<List<String>>) {
+@Composable
+private fun WordTable(rows: List<List<String>>) {
     val border = MaterialTheme.colorScheme.outlineVariant
     Column(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-        rows.forEach { row -> Row { row.forEach { cell -> Box(Modifier.widthIn(min=120.dp,max=280.dp).border(0.5.dp,border).padding(8.dp)) { Text(cell.ifEmpty { " " }, style=MaterialTheme.typography.bodyMedium) } } }
+        rows.forEach { row ->
+            Row {
+                row.forEach { cell ->
+                    Box(
+                        Modifier
+                            .widthIn(min = 120.dp, max = 280.dp)
+                            .border(0.5.dp, border)
+                            .padding(8.dp)
+                    ) {
+                        Text(cell.ifEmpty { " " }, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -101,4 +115,26 @@ private fun wordText(runs: List<WordRun>): AnnotatedString = buildAnnotatedStrin
 }
 private fun WordAlignment.textAlign()=when(this){WordAlignment.Center->TextAlign.Center;WordAlignment.End->TextAlign.End;WordAlignment.Justify->TextAlign.Justify;else->TextAlign.Start}
 
-@Composable private fun WordMessage(title:Int,message:Int,padding:PaddingValues,onBack:()->Unit,action:(()->Unit)?=null,actionLabel:Int=R.string.try_again){Column(Modifier.fillMaxSize().padding(padding).padding(32.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Outlined.Description,null,Modifier.size(52.dp));Text(stringResource(title),style=MaterialTheme.typography.titleMedium,textAlign=TextAlign.Center);Text(stringResource(message),textAlign=TextAlign.Center,color=MaterialTheme.colorScheme.onSurfaceVariant);Row{TextButton(onClick=onBack){Text(stringResource(R.string.back))};action?.let{Button(onClick=it){Text(stringResource(actionLabel))}}}}}
+@Composable
+private fun WordMessage(
+    title: Int,
+    message: Int,
+    padding: PaddingValues,
+    onBack: () -> Unit,
+    action: (() -> Unit)? = null,
+    actionLabel: Int = R.string.try_again
+) {
+    Column(
+        Modifier.fillMaxSize().padding(padding).padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(Icons.Outlined.Description, null, Modifier.size(52.dp))
+        Text(stringResource(title), style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+        Text(stringResource(message), textAlign = TextAlign.Center, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row {
+            TextButton(onClick = onBack) { Text(stringResource(R.string.back)) }
+            action?.let { Button(onClick = it) { Text(stringResource(actionLabel)) } }
+        }
+    }
+}
