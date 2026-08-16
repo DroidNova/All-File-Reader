@@ -1,149 +1,115 @@
 package com.droidnova.allfilereader.data.repository
 
-import android.content.ContentResolver
-import android.content.ContentUris
-import android.os.Bundle
-import android.provider.MediaStore
+import android.content.Context
+import android.os.Build
+import android.os.Environment
+import android.os.storage.StorageManager
 import com.droidnova.allfilereader.domain.model.DocumentCategory
 import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.model.DocumentFile
+import com.droidnova.allfilereader.domain.model.DocumentIds
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
-import java.util.concurrent.TimeUnit
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.util.ArrayDeque
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
 
 class MediaStoreDocumentRepository @Inject constructor(
-    private val contentResolver: ContentResolver
+    @ApplicationContext private val context: Context
 ) : DocumentRepository {
     private val scanMutex = Mutex()
-    private var cachedDocuments: List<DocumentFile>? = null
-    private var cacheIncludesImages = false
+    private var cache: List<DocumentFile>? = null
     private val _documents = MutableStateFlow<List<DocumentFile>>(emptyList())
     override val documents: StateFlow<List<DocumentFile>> = _documents.asStateFlow()
+    private val knownDocuments = LinkedHashMap<String, DocumentFile>()
 
-    override suspend fun getDocuments(
-        includeImages: Boolean,
-        forceRefresh: Boolean
-    ): List<DocumentFile> = scanMutex.withLock {
-        val cached = cachedDocuments
-        if (!forceRefresh && cached != null && (!includeImages || cacheIncludesImages)) {
-            return@withLock if (includeImages) cached else cached.filterNot {
-                it.category == DocumentCategory.Image
+    override suspend fun getDocuments(forceRefresh: Boolean): List<DocumentFile> = scanMutex.withLock {
+        if (!forceRefresh) cache?.let { return@withLock it }
+        val result = withContext(Dispatchers.IO) { scan() }
+        cache = result
+        synchronized(knownDocuments) {
+            knownDocuments.putAll(result.associateBy(DocumentFile::id))
+        }
+        _documents.value = result
+        result
+    }
+
+    override fun rememberDocument(document: DocumentFile) {
+        synchronized(knownDocuments) { knownDocuments[document.id] = document }
+    }
+
+    override suspend fun resolveDocument(id: String): DocumentFile? {
+        val known = synchronized(knownDocuments) { knownDocuments[id] }
+            ?: getDocuments(forceRefresh = false).firstOrNull { it.id == id }
+        return withContext(Dispatchers.IO) {
+            known?.takeIf { document ->
+            runCatching {
+                val uri = java.net.URI(document.uri)
+                uri.scheme != "file" || File(uri).isFile
+            }.getOrDefault(true)
             }
         }
-
-        val documents = withContext(Dispatchers.IO) { queryDocuments(includeImages) }
-        cachedDocuments = documents
-        cacheIncludesImages = includeImages
-        _documents.value = documents
-        documents
     }
 
-    private fun queryDocuments(includeImages: Boolean): List<DocumentFile> {
-        val collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL)
-        val columns = arrayOf(
-            MediaStore.Files.FileColumns._ID,
-            MediaStore.Files.FileColumns.DISPLAY_NAME,
-            MediaStore.Files.FileColumns.MIME_TYPE,
-            MediaStore.Files.FileColumns.SIZE,
-            MediaStore.Files.FileColumns.DATE_MODIFIED
-        )
-        val mediaTypes = buildList {
-            add(MediaStore.Files.FileColumns.MEDIA_TYPE_DOCUMENT)
-            add(MediaStore.Files.FileColumns.MEDIA_TYPE_NONE)
-            if (includeImages) add(MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE)
-        }
-        val queryArgs = Bundle().apply {
-            putString(
-                ContentResolver.QUERY_ARG_SQL_SELECTION,
-                mediaTypes.joinToString(" OR ") {
-                    "${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?"
+    private suspend fun scan(): List<DocumentFile> {
+        val found = LinkedHashMap<String, DocumentFile>()
+        val visited = HashSet<String>()
+        val queue = ArrayDeque<File>()
+        storageRoots().forEach(queue::add)
+        while (queue.isNotEmpty()) {
+            coroutineContext.ensureActive()
+            val directory = queue.removeFirst()
+            val canonical = runCatching { directory.canonicalPath }.getOrNull() ?: continue
+            if (!visited.add(canonical) || isRestricted(canonical)) continue
+            val children = try { directory.listFiles() } catch (_: SecurityException) { null } ?: continue
+            for (file in children) {
+                coroutineContext.ensureActive()
+                if (file.isDirectory) {
+                    if (!file.isHidden) queue.add(file)
+                    continue
                 }
-            )
-            putStringArray(
-                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS,
-                mediaTypes.map(Int::toString).toTypedArray()
-            )
-            putStringArray(
-                ContentResolver.QUERY_ARG_SORT_COLUMNS,
-                arrayOf(MediaStore.Files.FileColumns.DATE_MODIFIED)
-            )
-            putInt(
-                ContentResolver.QUERY_ARG_SORT_DIRECTION,
-                ContentResolver.QUERY_SORT_DIRECTION_DESCENDING
-            )
-            putInt(ContentResolver.QUERY_ARG_LIMIT, MAX_RESULTS)
+                val extension = DocumentClassifier.extensionOf(file.name)
+                val category = DocumentClassifier.classify(null, extension)
+                if (category !in supported) continue
+                val path = runCatching { file.canonicalPath }.getOrNull() ?: continue
+                found[path] = DocumentFile(
+                    id = DocumentIds.fromStorageLocation(path), displayName = file.name, uri = file.toURI().toString(),
+                    mimeType = null, extension = extension, sizeBytes = runCatching { file.length() }.getOrDefault(-1),
+                    lastModifiedEpochMillis = runCatching { file.lastModified() }.getOrDefault(0),
+                    category = category, isBookmarked = false
+                )
+            }
         }
-
-        try {
-            return contentResolver.query(collection, columns, queryArgs, null)?.use { cursor ->
-                val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
-                val nameColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DISPLAY_NAME)
-                val mimeColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.MIME_TYPE)
-                val sizeColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.SIZE)
-                val modifiedColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATE_MODIFIED)
-
-                buildList {
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getLong(idColumn)
-                        val displayName = cursor.getString(nameColumn)?.trim().orEmpty()
-                        if (displayName.isEmpty() || isTemporary(displayName)) continue
-
-                        val mimeType = cursor.getString(mimeColumn)?.takeIf(String::isNotBlank)
-                        val extension = DocumentClassifier.extensionOf(displayName)
-                        val category = DocumentClassifier.classify(mimeType, extension)
-                        if (!includeImages && category == DocumentCategory.Image) continue
-
-                        val uri = ContentUris.withAppendedId(collection, id).toString()
-                        val size = if (cursor.isNull(sizeColumn)) -1L else cursor.getLong(sizeColumn)
-                        val modifiedSeconds = if (cursor.isNull(modifiedColumn)) {
-                            0L
-                        } else {
-                            cursor.getLong(modifiedColumn)
-                        }
-                        add(
-                            DocumentFile(
-                                id = "external:$id",
-                                displayName = displayName,
-                                uri = uri,
-                                mimeType = mimeType,
-                                extension = extension,
-                                sizeBytes = size,
-                                lastModifiedEpochMillis = TimeUnit.SECONDS.toMillis(modifiedSeconds),
-                                category = category,
-                                isBookmarked = false
-                            )
-                        )
-                    }
-                }
-            }.orEmpty()
-                .distinctBy(DocumentFile::uri)
-                .sortedByDescending(DocumentFile::lastModifiedEpochMillis)
-        } catch (cancellation: CancellationException) {
-            throw cancellation
-        } catch (securityException: SecurityException) {
-            throw DocumentAccessException(securityException)
-        } catch (runtimeException: RuntimeException) {
-            throw DocumentAccessException(runtimeException)
-        }
+        return found.values.sortedByDescending(DocumentFile::lastModifiedEpochMillis)
     }
 
-    private fun isTemporary(displayName: String): Boolean {
-        val normalized = displayName.lowercase(java.util.Locale.ROOT)
-        return normalized.startsWith('.') || TEMPORARY_SUFFIXES.any(normalized::endsWith)
+    private fun storageRoots(): List<File> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            return context.getSystemService(StorageManager::class.java).storageVolumes
+                .mapNotNull { it.directory }.filter { it.exists() && it.canRead() }
+        }
+        return buildList {
+            add(Environment.getExternalStorageDirectory())
+            context.getExternalFilesDirs(null).mapNotNull { it?.parentFile?.parentFile?.parentFile?.parentFile }
+                .forEach(::add)
+        }.distinctBy { runCatching { it.canonicalPath }.getOrDefault(it.absolutePath) }
     }
+
+    private fun isRestricted(path: String): Boolean = path.contains("/Android/data") || path.contains("/Android/obb")
 
     private companion object {
-        const val MAX_RESULTS = 500
-        val TEMPORARY_SUFFIXES = setOf(".tmp", ".temp", ".part", ".crdownload")
+        val supported = setOf(DocumentCategory.Pdf, DocumentCategory.Word, DocumentCategory.Excel,
+            DocumentCategory.PowerPoint, DocumentCategory.Text)
     }
 }
-
 class DocumentAccessException(cause: Throwable) : Exception(cause)

@@ -1,307 +1,65 @@
 package com.droidnova.allfilereader.ui.screens.home
 
 import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Slideshow
-import androidx.compose.material.icons.filled.TableChart
-import androidx.compose.material.icons.filled.TextSnippet
-import androidx.compose.material.icons.outlined.BookmarkBorder
-import androidx.compose.material.icons.outlined.Draft
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.droidnova.allfilereader.R
-import com.droidnova.allfilereader.ui.components.DocumentFileRow
+import com.droidnova.allfilereader.domain.model.DocumentCategory
+import com.droidnova.allfilereader.ui.components.rememberStorageAccessRequest
 import com.droidnova.allfilereader.ui.screens.category.FileCategory
 
-private data class DocumentCategory(
-    @param:StringRes val labelResId: Int,
-    val icon: ImageVector,
-    val color: Color,
-    val category: FileCategory?
-)
-
-@Composable
-fun HomeScreen(
-    onCategorySelected: (String) -> Unit,
-    onFoldersSelected: () -> Unit,
-    viewModel: HomeViewModel = hiltViewModel()
-) {
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    HomeScreenContent(
-        uiState = uiState,
-        onTabSelected = viewModel::onTabSelected,
-        onCategorySelected = onCategorySelected,
-        onFoldersSelected = onFoldersSelected
-    )
+private data class HomeCategory(@StringRes val label:Int,val icon:ImageVector,val color:Color,val category:FileCategory?=null,val special:String?=null,val model:DocumentCategory?=null)
+@Composable fun HomeScreen(onCategorySelected:(String)->Unit,onDirectoriesSelected:()->Unit,onFavoritesSelected:()->Unit,viewModel:HomeViewModel=hiltViewModel()){
+ val state by viewModel.uiState.collectAsStateWithLifecycle();LifecycleResumeEffect(Unit){viewModel.onResume();onPauseOrDispose{}}
+ val request=rememberStorageAccessRequest(viewModel::onResume)
+ HomeScreenContent(state,viewModel::refresh,request,viewModel::dismissPermission,onCategorySelected,onDirectoriesSelected,onFavoritesSelected)
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun HomeScreenContent(
-    uiState: HomeUiState,
-    onTabSelected: (HomeTab) -> Unit,
-    onCategorySelected: (String) -> Unit,
-    onFoldersSelected: () -> Unit
-) {
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = { HomeTopAppBar() }
-    ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-        ) {
-            CategoryGrid(
-                onCategorySelected = onCategorySelected,
-                onFoldersSelected = onFoldersSelected,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 20.dp)
-            )
-
-            PrimaryTabRow(selectedTabIndex = uiState.selectedTab.ordinal) {
-                HomeTab.entries.forEach { tab ->
-                    Tab(
-                        selected = uiState.selectedTab == tab,
-                        onClick = { onTabSelected(tab) },
-                        text = {
-                            Text(
-                                text = stringResource(
-                                    when (tab) {
-                                        HomeTab.Recent -> R.string.recent
-                                        HomeTab.Bookmarks -> R.string.bookmarks
-                                    }
-                                )
-                            )
-                        }
-                    )
-                }
-            }
-
-            when (uiState.selectedTab) {
-                HomeTab.Recent -> {
-                    if (uiState.recentDocuments.isEmpty()) {
-                        EmptyState(
-                            icon = Icons.Outlined.Draft,
-                            title = stringResource(R.string.no_recent_files),
-                            supportingText = stringResource(R.string.no_recent_files_supporting_text)
-                        )
-                    } else {
-                        uiState.recentDocuments.forEach { document ->
-                            DocumentFileRow(document = document, onClick = {})
-                        }
-                    }
-                }
-
-                HomeTab.Bookmarks -> {
-                    EmptyState(
-                        icon = Icons.Outlined.BookmarkBorder,
-                        title = stringResource(R.string.no_bookmarks_yet),
-                        supportingText = stringResource(R.string.no_bookmarks_supporting_text)
-                    )
-                }
-            }
-        }
-    }
+@Composable internal fun HomeScreenContent(state:HomeUiState,onRefresh:()->Unit,onAllow:()->Unit,onNotNow:()->Unit,onCategory:(String)->Unit,onDirectories:()->Unit,onFavorites:()->Unit){
+ Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),topBar={TopAppBar(title={Text(stringResource(R.string.app_name))})}){pad->
+  PullToRefreshBox(state.isRefreshing,onRefresh,Modifier.fillMaxSize().padding(pad)){
+   val c=MaterialTheme.colorScheme;val cards=listOf(
+    HomeCategory(R.string.category_all,Icons.Default.InsertDriveFile,c.primary,FileCategory.All,model=null),HomeCategory(R.string.pdf,Icons.Default.PictureAsPdf,c.error,FileCategory.Pdf,model=DocumentCategory.Pdf),
+    HomeCategory(R.string.word,Icons.Default.Description,c.secondary,FileCategory.Word,model=DocumentCategory.Word),HomeCategory(R.string.excel,Icons.Default.TableChart,c.tertiary,FileCategory.Excel,model=DocumentCategory.Excel),
+    HomeCategory(R.string.ppt,Icons.Default.Slideshow,c.error,FileCategory.PowerPoint,model=DocumentCategory.PowerPoint),HomeCategory(R.string.txt,Icons.Default.TextSnippet,c.onSurfaceVariant,FileCategory.Text,model=DocumentCategory.Text),
+    HomeCategory(R.string.directories,Icons.Default.Folder,c.tertiary,special="directories"),HomeCategory(R.string.favorites,Icons.Outlined.FavoriteBorder,c.primary,special="favorites"))
+   LazyVerticalGrid(GridCells.Fixed(2),contentPadding=PaddingValues(16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    if(!state.hasAccess&&!state.permissionDismissed)item(span={androidx.compose.foundation.lazy.grid.GridItemSpan(2)}){PermissionCard(onAllow,onNotNow)}
+    items(cards,key={it.label}){card->CategoryCard(card,when{card.special=="directories"->stringResource(R.string.browse);card.special=="favorites"->"0";!state.hasAccess->"—";card.category==FileCategory.All->state.documents.size.toString();else->state.count(card.model).toString()}){when(card.special){"directories"->onDirectories();"favorites"->onFavorites();else->onCategory(card.category!!.id)}}}
+   }
+  }
+ }
 }
+@Composable private fun CategoryCard(card:HomeCategory,count:String,onClick:()->Unit){val label=stringResource(card.label);ElevatedCard(onClick=onClick,modifier=Modifier.fillMaxWidth().heightIn(min=88.dp)){Row(Modifier.fillMaxWidth().padding(14.dp),verticalAlignment=Alignment.CenterVertically){Icon(card.icon,label,tint=card.color,modifier=Modifier.size(32.dp));Spacer(Modifier.width(12.dp));Column(Modifier.weight(1f)){Text(label,style=MaterialTheme.typography.titleMedium,maxLines=1,overflow=TextOverflow.Ellipsis);Text(count,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)}}}}
+@Composable fun PermissionCard(onAllow:()->Unit,onNotNow:()->Unit){Card(Modifier.fillMaxWidth()){Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){Text(stringResource(R.string.all_files_access),style=MaterialTheme.typography.titleMedium);Text(stringResource(R.string.all_files_access_explanation));Row{Button(onClick=onAllow){Text(stringResource(R.string.allow_access))};TextButton(onClick=onNotNow){Text(stringResource(R.string.not_now))}}}}}
 
-@OptIn(ExperimentalMaterial3Api::class)
+@Preview(showBackground = true, widthDp = 180)
 @Composable
-private fun HomeTopAppBar() {
-    TopAppBar(
-        title = { Text(text = stringResource(R.string.app_name)) },
-        actions = {
-            IconButton(
-                onClick = {},
-                enabled = false
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = stringResource(R.string.search)
-                )
-            }
-            IconButton(
-                onClick = {},
-                enabled = false
-            ) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.more_options)
-                )
-            }
-        }
-    )
-}
-
-@Composable
-private fun CategoryGrid(
-    onCategorySelected: (String) -> Unit,
-    onFoldersSelected: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val colors = MaterialTheme.colorScheme
-    val categories = listOf(
-        DocumentCategory(R.string.all_files, Icons.Default.InsertDriveFile, colors.primary, FileCategory.All),
-        DocumentCategory(R.string.pdf, Icons.Default.PictureAsPdf, colors.error, FileCategory.Pdf),
-        DocumentCategory(R.string.word, Icons.Default.Description, colors.secondary, FileCategory.Word),
-        DocumentCategory(R.string.excel, Icons.Default.TableChart, colors.tertiary, FileCategory.Excel),
-        DocumentCategory(R.string.powerpoint, Icons.Default.Slideshow, colors.error, FileCategory.PowerPoint),
-        DocumentCategory(R.string.text, Icons.Default.TextSnippet, colors.onSurfaceVariant, FileCategory.Text),
-        DocumentCategory(R.string.images, Icons.Default.Image, colors.primary, FileCategory.Images),
-        DocumentCategory(R.string.folders, Icons.Default.Folder, colors.tertiary, null)
-    )
-
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        categories.chunked(4).forEach { rowCategories ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowCategories.forEach { category ->
-                    CategoryItem(
-                        icon = category.icon,
-                        label = stringResource(category.labelResId),
-                        color = category.color,
-                        onClick = {
-                            category.category?.let { onCategorySelected(it.id) } ?: onFoldersSelected()
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CategoryItem(
-    icon: ImageVector,
-    label: String,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        onClick = onClick,
-        modifier = modifier,
-        shape = MaterialTheme.shapes.medium,
-        color = Color.Transparent
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Surface(
-                shape = CircleShape,
-                color = color.copy(alpha = 0.14f)
-            ) {
-                Box(
-                    modifier = Modifier.size(52.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier.size(26.dp),
-                        tint = color
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = label,
-                modifier = Modifier.fillMaxWidth(),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-    }
-}
-
-@Composable
-private fun EmptyState(
-    icon: ImageVector,
-    title: String,
-    supportingText: String,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 32.dp, vertical = 40.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = supportingText,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center
+private fun CategoryCardPreview() {
+    MaterialTheme {
+        CategoryCard(
+            card = HomeCategory(R.string.pdf, Icons.Default.PictureAsPdf, MaterialTheme.colorScheme.error),
+            count = "39",
+            onClick = {}
         )
     }
 }

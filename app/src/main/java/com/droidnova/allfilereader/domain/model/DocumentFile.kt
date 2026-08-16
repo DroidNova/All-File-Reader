@@ -18,7 +18,6 @@ enum class DocumentCategory {
     Excel,
     PowerPoint,
     Text,
-    Image,
     Folder,
     Other
 }

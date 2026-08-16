@@ -4,33 +4,23 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Environment
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
-enum class MediaPermissionType {
-    Documents,
-    Images
-}
-
-data class RequiredMediaPermission(
-    val permission: String,
-    val type: MediaPermissionType
-)
-
+/** Central version-aware shared-storage access check. */
 class MediaPermissionManager @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
-    fun requiredPermission(): RequiredMediaPermission = if (Build.VERSION.SDK_INT >= 33) {
-        RequiredMediaPermission(Manifest.permission.READ_MEDIA_IMAGES, MediaPermissionType.Images)
+    fun isGranted(): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Environment.isExternalStorageManager()
     } else {
-        RequiredMediaPermission(Manifest.permission.READ_EXTERNAL_STORAGE, MediaPermissionType.Documents)
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) ==
+            PackageManager.PERMISSION_GRANTED
     }
 
-    fun isGranted(): Boolean = ContextCompat.checkSelfPermission(
-        context,
-        requiredPermission().permission
-    ) == PackageManager.PERMISSION_GRANTED
-
-    fun canQueryDocumentsWithoutPermission(): Boolean = Build.VERSION.SDK_INT >= 33
+    fun runtimePermission(): String? = if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    } else null
 }

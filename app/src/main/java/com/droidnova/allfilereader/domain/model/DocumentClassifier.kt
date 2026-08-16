@@ -22,10 +22,7 @@ object DocumentClassifier {
                 DocumentCategory.Excel
             normalizedMimeType in powerPointMimeTypes || normalizedExtension in setOf("ppt", "pptx") ->
                 DocumentCategory.PowerPoint
-            normalizedMimeType?.startsWith("text/") == true ||
-                normalizedExtension in textExtensions -> DocumentCategory.Text
-            normalizedMimeType?.startsWith("image/") == true ||
-                normalizedExtension in imageExtensions -> DocumentCategory.Image
+            normalizedMimeType == "text/plain" || normalizedExtension == "txt" -> DocumentCategory.Text
             else -> DocumentCategory.Other
         }
     }
@@ -42,6 +39,4 @@ object DocumentClassifier {
         "application/vnd.ms-powerpoint",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
-    private val textExtensions = setOf("txt", "csv", "log", "md", "json", "xml", "rtf")
-    private val imageExtensions = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif")
 }
