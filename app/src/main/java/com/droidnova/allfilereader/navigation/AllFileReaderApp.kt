@@ -33,6 +33,7 @@ import com.droidnova.allfilereader.ui.screens.home.HomeScreen
 import com.droidnova.allfilereader.ui.screens.settings.SettingsScreen
 import com.droidnova.allfilereader.ui.screens.pdf.PdfReaderScreen
 import com.droidnova.allfilereader.ui.screens.txt.TxtReaderScreen
+import com.droidnova.allfilereader.ui.screens.word.WordReaderScreen
 import kotlinx.coroutines.launch
 
 @Composable
@@ -53,6 +54,8 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
             DocumentReaderDestination.PlainText -> navController.navigate(TxtReaderRoute(document.id)) {
                 launchSingleTop = true
             }
+            DocumentReaderDestination.Docx, DocumentReaderDestination.LegacyWord ->
+                navController.navigate(WordReaderRoute(document.id)) { launchSingleTop = true }
             DocumentReaderDestination.FutureOffice -> coroutineScope.launch {
                 snackbarHostState.showSnackbar(officeReaderMessage)
             }
@@ -141,6 +144,9 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
             }
             composable<TxtReaderRoute> {
                 TxtReaderScreen(onBack = { navController.popBackStack() })
+            }
+            composable<WordReaderRoute> {
+                WordReaderScreen(onBack = { navController.popBackStack() })
             }
         }
     }
