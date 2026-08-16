@@ -50,7 +50,10 @@ fun FoldersScreen(onNavigateHome: () -> Unit, onDocumentClick: (DocumentFile) ->
                 else -> LazyColumn(Modifier.fillMaxSize()) {
                     items(entries.itemCount, key = entries.itemKey(SafEntry::id)) { index -> entries[index]?.let { entry ->
                         if (entry.isDirectory) FolderRow(entry, state.isShowingRoots) { viewModel.open(entry) }
-                        else { val document = entry.asDocument(); DocumentFileRow(document) { onDocumentClick(document) } }
+                        else {
+                            val document = entry.asDocument()
+                            DocumentFileRow(document = document, onClick = { onDocumentClick(document) })
+                        }
                     } }
                     when (entries.loadState.append) {
                         LoadState.Loading -> item("append-loading") { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp) } }

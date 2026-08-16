@@ -54,7 +54,9 @@ fun PagedDocumentList(
                 PagedMessage(emptyTitle, emptyText)
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(documents.itemCount, key = documents.itemKey(DocumentFile::id)) { index ->
-                    documents[index]?.let { document -> DocumentFileRow(document) { onDocumentClick(document) } }
+                    documents[index]?.let { document ->
+                        DocumentFileRow(document = document, onClick = { onDocumentClick(document) })
+                    }
                 }
                 when (documents.loadState.append) {
                     LoadState.Loading -> item(key = "append-loading") {
