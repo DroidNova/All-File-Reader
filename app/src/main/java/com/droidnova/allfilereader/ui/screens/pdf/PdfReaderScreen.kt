@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,6 +42,7 @@ import androidx.pdf.viewer.fragment.PdfViewerFragment
 import com.droidnova.allfilereader.R
 import com.droidnova.allfilereader.ui.components.rememberStorageAccessRequest
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PdfReaderScreen(onBack: () -> Unit, viewModel: PdfReaderViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -64,14 +66,14 @@ fun PdfReaderScreen(onBack: () -> Unit, viewModel: PdfReaderViewModel = hiltView
             }
         )
     }) { padding ->
-        when (state.document) {
+        when (val document = state.document) {
             PdfDocumentState.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
             is PdfDocumentState.Ready -> AndroidFragment<PdfViewerFragment>(
                 modifier = Modifier.fillMaxSize().padding(padding)
             ) { fragment ->
                 viewer = fragment
                 try {
-                    if (fragment.documentUri != ready.uri) fragment.documentUri = ready.uri
+                    if (fragment.documentUri != document.uri) fragment.documentUri = document.uri
                 } catch (_: UnsupportedOperationException) {
                     viewModel.viewerUnsupported()
                 }
