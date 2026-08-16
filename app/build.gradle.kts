@@ -53,6 +53,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.pdf.viewer.fragment)
     implementation(libs.androidx.fragment.compose)
+    implementation(libs.androidx.appcompat)
     implementation(libs.google.dagger.hilt.android)
     implementation(libs.kotlinx.serialization.core)
     ksp(libs.google.dagger.hilt.compiler)
