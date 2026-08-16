@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId = "com.droidnova.allfilereader"
-        minSdk = 26
+        minSdk = 28
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
@@ -51,6 +51,12 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.hilt.navigation.compose)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.pdf.viewer.fragment)
+    implementation(libs.androidx.fragment.compose)
+    implementation(libs.androidx.appcompat)
+    implementation(libs.google.material)
+    implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.paging.compose)
     implementation(libs.google.dagger.hilt.android)
     implementation(libs.kotlinx.serialization.core)
     ksp(libs.google.dagger.hilt.compiler)

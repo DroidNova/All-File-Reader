@@ -6,25 +6,47 @@
 <string name="no_files_found">No files found</string><string name="no_pdf_files">No PDF files found</string><string name="no_word_files">No Word files found</string><string name="no_excel_files">No Excel files found</string><string name="no_ppt_files">No PPT files found</string><string name="no_txt_files">No TXT files found</string><string name="category_empty_supporting_text">Supported documents in this category will appear here.</string>
 <string name="all_files_access">All files access</string><string name="all_files_access_explanation">All File Reader needs access to shared storage to find and organize documents across folders on your device.</string><string name="allow_access">Allow access</string><string name="not_now">Not now</string>
 <string name="files_error_title">Couldn’t load files</string><string name="files_error_supporting_text">Check access and try again.</string><string name="try_again">Try again</string><string name="back">Back</string>
+<string name="files_append_error">Couldn’t load more files.</string>
 <string name="unknown_file_info">Unknown</string><string name="document_type_pdf">PDF</string><string name="document_type_word">Word</string><string name="document_type_excel">Excel</string><string name="document_type_powerpoint">PowerPoint</string><string name="document_type_text">Text</string><string name="document_type_folder">Folder</string><string name="document_type_other">Other</string><string name="file_metadata">%1$s · %2$s · %3$s</string>
 <string name="folder">Folder</string><string name="storage_root">Storage root</string><string name="folder_is_empty">This folder is empty</string><string name="folder_is_empty_supporting_text">No accessible items were found in this folder.</string><string name="folder_error_title">Couldn’t load folder</string><string name="directory_access_denied">This location is unavailable or access is restricted. Return or try again.</string>
 <string name="no_favorites_yet">No favorites yet</string><string name="no_favorites_supporting_text">Files you add to favorites will appear here.</string>
-<string name="word_reader_later">Word reader will be added in a later step.</string>
-<string name="excel_reader_later">Excel reader will be added in a later step.</string>
-<string name="ppt_reader_later">PPT reader will be added in a later step.</string>
-<string name="txt_reader_later">TXT reader will be added in a later step.</string>
+<string name="txt_reader">Text Reader</string>
+<string name="txt_loading">Loading text file</string>
+<string name="txt_empty">Empty text file</string>
+<string name="txt_empty_message">This text file is empty.</string>
+<string name="txt_not_found">File not found</string>
+<string name="txt_not_found_message">This text file may have been moved, renamed, or deleted.</string>
+<string name="txt_access_removed">Access removed</string>
+<string name="txt_access_removed_message">This text file is no longer accessible. Restore storage access and try again.</string>
+<string name="txt_cannot_open">Text file can’t be opened</string>
+<string name="txt_encoding_unsupported">This text encoding is not supported.</string>
+<string name="txt_binary_unsupported">This file contains binary content and cannot be displayed as text.</string>
+<string name="txt_too_large">This text file is too large to display safely.</string>
+<string name="txt_read_error">The text file couldn’t be read. Check access and try again.</string>
 <string name="reader_unavailable">A reader for this file type is not available yet.</string>
+<string name="office_reader_later">Office reader will be added in a later step.</string>
+<string name="word_reader">Word Reader</string>
+<string name="word_empty">Empty Word document</string>
+<string name="word_empty_message">This Word document has no readable content.</string>
+<string name="word_unsupported">Word format not supported</string>
+<string name="word_legacy_doc_message">The older .doc format is not supported yet. Please use a .docx file.</string>
+<string name="word_encrypted_message">This encrypted or unsupported Word document can’t be opened.</string>
+<string name="word_cannot_open">Word document can’t be opened</string>
+<string name="word_corrupted_message">This Word document is damaged or is not a valid DOCX file.</string>
+<string name="word_not_found">File not found</string>
+<string name="word_not_found_message">This Word document may have been moved, renamed, or deleted.</string>
+<string name="word_access_removed">Access removed</string>
+<string name="word_access_removed_message">This Word document is no longer accessible. Restore storage access and try again.</string>
+<string name="word_safety_message">This document exceeds safe reading limits.</string>
+<string name="word_read_error">The Word document couldn’t be read. Check access and try again.</string>
+<string name="word_image_unavailable">Embedded image unavailable</string>
+<string name="count_unavailable">—</string>
 <string name="pdf_reader">PDF Reader</string>
-<string name="pdf_page_position">Page %1$d of %2$d</string>
-<string name="pdf_page_number">Page %1$d</string>
-<string name="pdf_page_content_description">PDF page %1$d</string>
-<string name="pdf_page_render_error">This page couldn’t be displayed.</string>
+<string name="pdf_search">Search PDF text</string>
 <string name="pdf_not_found">File not found</string>
 <string name="pdf_not_found_message">This PDF may have been moved, renamed, or deleted.</string>
 <string name="pdf_access_removed">Access removed</string>
 <string name="pdf_access_removed_message">This PDF is no longer accessible. Restore storage access and try again.</string>
-<string name="pdf_empty">No readable pages</string>
-<string name="pdf_empty_message">This PDF does not contain any readable pages.</string>
 <string name="pdf_unsupported">PDF can’t be opened</string>
 <string name="pdf_unsupported_message">This PDF may be damaged, password protected, or unsupported.</string>
 </resources>
