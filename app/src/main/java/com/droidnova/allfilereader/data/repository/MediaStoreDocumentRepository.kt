@@ -9,6 +9,10 @@ import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.model.DocumentFile
 import com.droidnova.allfilereader.domain.model.DocumentIds
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
+import com.droidnova.allfilereader.data.paging.LocalMetadataPagingConfig
+import com.droidnova.allfilereader.data.paging.SnapshotPagingSource
+import androidx.paging.Pager
+import androidx.paging.PagingData
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.util.ArrayDeque
@@ -22,6 +26,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.Flow
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.coroutineContext
 
 class MediaStoreDocumentRepository @Inject constructor(
@@ -32,6 +38,23 @@ class MediaStoreDocumentRepository @Inject constructor(
     private val _documents = MutableStateFlow<List<DocumentFile>>(emptyList())
     override val documents: StateFlow<List<DocumentFile>> = _documents.asStateFlow()
     private val knownDocuments = LinkedHashMap<String, DocumentFile>()
+    private val pagingRefreshRequested = AtomicBoolean(false)
+
+    override fun pagedDocuments(category: DocumentCategory?): Flow<PagingData<DocumentFile>> = Pager(
+        config = LocalMetadataPagingConfig,
+        pagingSourceFactory = {
+            SnapshotPagingSource {
+                getDocuments(pagingRefreshRequested.getAndSet(false))
+                    .asSequence()
+                    .filter { category == null || it.category == category }
+                    .distinctBy(DocumentFile::id)
+                    .sortedWith(compareByDescending<DocumentFile> { it.lastModifiedEpochMillis }.thenByDescending { it.id })
+                    .toList()
+            }
+        }
+    ).flow
+
+    override fun requestPagingRefresh() { pagingRefreshRequested.set(true) }
 
     override suspend fun getDocuments(forceRefresh: Boolean): List<DocumentFile> = scanMutex.withLock {
         if (!forceRefresh) cache?.let { return@withLock it }
@@ -90,7 +113,7 @@ class MediaStoreDocumentRepository @Inject constructor(
                 )
             }
         }
-        return found.values.sortedByDescending(DocumentFile::lastModifiedEpochMillis)
+        return found.values.sortedWith(compareByDescending<DocumentFile> { it.lastModifiedEpochMillis }.thenByDescending { it.id })
     }
 
     private fun storageRoots(): List<File> {

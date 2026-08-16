@@ -8,6 +8,11 @@ import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.model.SafEntry
 import com.droidnova.allfilereader.domain.repository.FolderAccessRevokedException
 import com.droidnova.allfilereader.domain.repository.FolderRepository
+import com.droidnova.allfilereader.data.paging.LocalMetadataPagingConfig
+import com.droidnova.allfilereader.data.paging.SnapshotPagingSource
+import androidx.paging.Pager
+import androidx.paging.PagingData
+import kotlinx.coroutines.flow.Flow
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import javax.inject.Inject
@@ -18,6 +23,15 @@ import kotlinx.coroutines.withContext
 class SafFolderRepository @Inject constructor(
     @ApplicationContext private val context: Context
 ) : FolderRepository {
+    override fun pagedEntries(rootPath: String?, folderPath: String?): Flow<PagingData<SafEntry>> = Pager(
+        config = LocalMetadataPagingConfig,
+        pagingSourceFactory = {
+            SnapshotPagingSource {
+                val entries = if (rootPath == null || folderPath == null) roots() else children(rootPath, folderPath)
+                entries.distinctBy(SafEntry::id)
+            }
+        }
+    ).flow
     override suspend fun roots(): List<SafEntry> = withContext(Dispatchers.IO) {
         rootFiles().mapIndexedNotNull { index, file ->
             if (!file.exists() || !file.canRead()) null else file.toEntry(
@@ -42,7 +56,9 @@ class SafFolderRepository @Inject constructor(
                     type != com.droidnova.allfilereader.domain.model.DocumentCategory.Other
                 } }
                 .map { it.toEntry() }
-                .sortedWith(compareByDescending<SafEntry> { it.isDirectory }.thenBy(String.CASE_INSENSITIVE_ORDER) { it.displayName })
+                .sortedWith(compareByDescending<SafEntry> { it.isDirectory }
+                    .thenBy(String.CASE_INSENSITIVE_ORDER) { it.displayName }
+                    .thenBy { it.id })
                 .toList()
         } catch (cancellation: CancellationException) { throw cancellation }
         catch (exception: Exception) { throw FolderAccessRevokedException(exception) }
