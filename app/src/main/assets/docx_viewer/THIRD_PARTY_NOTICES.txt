@@ -1,0 +1,11 @@
+All File Reader — Third-Party Notices
+
+This product includes docx-preview 0.4.0 (docxjs), licensed under the Apache License 2.0.
+The complete license is provided in licenses/LICENSE-docx-preview.txt.
+Source project: https://github.com/VolodymyrBaydalka/docxjs
+
+This product includes JSZip 3.10.1, licensed under the MIT License.
+The complete license is provided in licenses/LICENSE-jszip.txt.
+Source project: https://github.com/Stuk/jszip
+
+These libraries are packaged with the application and are used entirely offline.
