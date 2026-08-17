@@ -44,7 +44,7 @@
 <string name="word_previous_result">Previous result</string>
 <string name="word_next_result">Next result</string>
 <string name="word_fit_width">Fit width</string>
-<string name="word_page_indicator">Page %1$d of %2$d</string>
+<string name="word_page_indicator">Rendered page %1$d of %2$d</string>
 <string name="word_search_indicator">%1$d of %2$d</string>
 <string name="count_unavailable">—</string>
 <string name="pdf_reader">PDF Reader</string>
