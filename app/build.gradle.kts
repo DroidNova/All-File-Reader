@@ -57,7 +57,10 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.androidx.paging.runtime)
     implementation(libs.androidx.paging.compose)
+    implementation(libs.androidx.webkit)
+    implementation(libs.androidx.datastore.preferences)
     implementation(libs.google.dagger.hilt.android)
     implementation(libs.kotlinx.serialization.core)
     ksp(libs.google.dagger.hilt.compiler)
+    testImplementation(libs.junit)
 }
