@@ -1,0 +1,39 @@
+package com.droidnova.allfilereader.ui.screens.excel
+
+import android.annotation.SuppressLint
+import android.graphics.Color
+import android.net.Uri
+import android.os.*
+import android.webkit.*
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.*
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.*
+import androidx.webkit.WebViewAssetLoader
+import com.droidnova.allfilereader.ui.components.rememberStorageAccessRequest
+import kotlinx.coroutines.delay
+import org.json.*
+import java.util.concurrent.atomic.AtomicBoolean
+
+private const val ORIGIN="https://appassets.androidplatform.net";private const val TIMEOUT=35_000L
+@OptIn(ExperimentalMaterial3Api::class) @Composable fun ExcelReaderScreen(onBack:()->Unit,vm:ExcelReaderViewModel=hiltViewModel()){
+ val s by vm.state.collectAsStateWithLifecycle();var web by remember{mutableStateOf<WebView?>(null)};var search by remember{mutableStateOf(false)};var q by remember{mutableStateOf("")};var current by remember{mutableIntStateOf(0)};var total by remember{mutableIntStateOf(0)}
+ LifecycleResumeEffect(Unit){vm.onResume();onPauseOrDispose{}};BackHandler(search){search=false;q="";web?.evaluateJavascript("searchSheet('')",null)};val access=rememberStorageAccessRequest(vm::onResume)
+ LaunchedEffect(q,search,s.phase){delay(250);if(search&&s.phase==ExcelReaderPhase.Ready)web?.evaluateJavascript("searchSheet(${JSONObject.quote(q)})",null)}
+ Scaffold(topBar={if(search)TopAppBar(title={TextField(q,{q=it},singleLine=true,placeholder={Text("Search worksheet")},trailingIcon={Text("$current of $total")})},navigationIcon={IconButton(onClick={search=false;q="";web?.evaluateJavascript("searchSheet('')",null)}){Icon(Icons.Default.Close,"Close search")}},actions={IconButton(enabled=total>0,onClick={web?.evaluateJavascript("nextMatch(-1)",null)}){Icon(Icons.Outlined.KeyboardArrowUp,"Previous")};IconButton(enabled=total>0,onClick={web?.evaluateJavascript("nextMatch(1)",null)}){Icon(Icons.Outlined.KeyboardArrowDown,"Next")}}) else TopAppBar(title={Text(s.fileName?:"Excel Reader",maxLines=1,overflow=TextOverflow.Ellipsis)},navigationIcon={IconButton(onClick=onBack){Icon(Icons.Default.ArrowBack,"Back")}},actions={if(s.phase==ExcelReaderPhase.Ready){IconButton(onClick={web?.evaluateJavascript("fitWidth()",null)}){Icon(Icons.Outlined.FitScreen,"Fit width")};IconButton(onClick={search=true}){Icon(Icons.Default.Search,"Search")}}})}){pad->
+  val ready=s.ready;if(ready!=null&&s.phase in setOf(ExcelReaderPhase.PreparingViewer,ExcelReaderPhase.ParsingWorkbook,ExcelReaderPhase.Ready)) ExcelWeb(ready,Modifier.fillMaxSize().padding(pad),{web=it},{phase,c,t->current=c;total=t;vm.viewerPhase(phase)}) else if(s.phase in setOf(ExcelReaderPhase.Resolving,ExcelReaderPhase.Validating))Box(Modifier.fillMaxSize().padding(pad),contentAlignment=Alignment.Center){CircularProgressIndicator()} else Message(s.phase,pad,onBack,if(s.phase==ExcelReaderPhase.PermissionDenied)access else vm::retry)
+ }
+}
+@Composable private fun Message(p:ExcelReaderPhase,pad:PaddingValues,back:()->Unit,retry:()->Unit){val msg=when(p){ExcelReaderPhase.UnsupportedLegacyXls->"The older .xls format is not supported yet.";ExcelReaderPhase.UnsupportedEncryptedWorkbook->"Password-encrypted workbooks are not supported.";ExcelReaderPhase.MissingFile->"This spreadsheet may have been moved or deleted.";ExcelReaderPhase.PermissionDenied->"Access to this spreadsheet is no longer available.";ExcelReaderPhase.WorkbookLimitsExceeded->"This worksheet exceeds safe viewing limits.";ExcelReaderPhase.RendererProcessCrashed->"The spreadsheet renderer stopped.";ExcelReaderPhase.ParseTimeout->"The workbook took too long to parse.";else->"This file is damaged, unsafe, or is not a valid XLSX workbook."};Column(Modifier.fillMaxSize().padding(pad).padding(32.dp),Arrangement.Center,Alignment.CenterHorizontally){Icon(Icons.Outlined.TableChart,null,Modifier.size(52.dp));Text(msg);Row{TextButton(onClick=back){Text("Back")};if(p!=ExcelReaderPhase.UnsupportedLegacyXls)Button(onClick=retry){Text("Retry")}}}}
+@SuppressLint("SetJavaScriptEnabled") @Composable private fun ExcelWeb(r:ExcelReady,mod:Modifier,onWeb:(WebView?)->Unit,onState:(ExcelReaderPhase,Int,Int)->Unit){val ctx=androidx.compose.ui.platform.LocalContext.current;val current by rememberUpdatedState(onState);val live=remember(r.token){AtomicBoolean(true)};val loader=remember(r.token){WebViewAssetLoader.Builder().addPathHandler("/assets/",WebViewAssetLoader.AssetsPathHandler(ctx)).addPathHandler("/spreadsheet/${r.token}/"){path->if(path=="workbook.xlsx"&&r.file.isFile)WebResourceResponse(ExcelReaderViewModel.MIME,null,r.file.inputStream())else null}.build()}
+ AndroidView(modifier=mod,factory={WebView(it).apply{setBackgroundColor(Color.WHITE);WebView.setWebContentsDebuggingEnabled(false);settings.apply{javaScriptEnabled=true;javaScriptCanOpenWindowsAutomatically=false;allowFileAccess=false;allowContentAccess=false;allowFileAccessFromFileURLs=false;allowUniversalAccessFromFileURLs=false;setSupportMultipleWindows(false);mixedContentMode=WebSettings.MIXED_CONTENT_NEVER_ALLOW;blockNetworkLoads=true;databaseEnabled=false;domStorageEnabled=false;setGeolocationEnabled(false);saveFormData=false;cacheMode=WebSettings.LOAD_NO_CACHE;builtInZoomControls=true;displayZoomControls=false;setSupportZoom(true);safeBrowsingEnabled=true};setDownloadListener{_,_,_,_,_->};val start=SystemClock.uptimeMillis();fun poll(){if(!live.get())return;if(SystemClock.uptimeMillis()-start>TIMEOUT){current(ExcelReaderPhase.ParseTimeout,0,0);stopLoading();return};evaluateJavascript("viewerState()") {raw->runCatching{val o=JSONObject(JSONArray("[$raw]").getString(0));when(o.getString("status")){"ready"->current(ExcelReaderPhase.Ready,o.getInt("searchCurrent"),o.getInt("searchTotal"));"error"->current(if(o.getString("error")=="limits")ExcelReaderPhase.WorkbookLimitsExceeded else ExcelReaderPhase.ParseFailure,0,0);else->Handler(Looper.getMainLooper()).postDelayed({poll()},250)}}.onFailure{Handler(Looper.getMainLooper()).postDelayed({poll()},250)}}};webViewClient=object:WebViewClient(){override fun shouldInterceptRequest(v:WebView,q:WebResourceRequest)=if(q.url.scheme=="https"&&q.url.host=="appassets.androidplatform.net")loader.shouldInterceptRequest(q.url)?:blocked() else blocked();override fun shouldOverrideUrlLoading(v:WebView,q:WebResourceRequest)=true;override fun onPageFinished(v:WebView,url:String){current(ExcelReaderPhase.ParsingWorkbook,0,0);poll()};override fun onRenderProcessGone(v:WebView,d:RenderProcessGoneDetail):Boolean{current(ExcelReaderPhase.RendererProcessCrashed,0,0);v.destroy();return true}};loadUrl("$ORIGIN/assets/excel_viewer/viewer.html?session=${r.token}");onWeb(this)}},update={onWeb(it)},onRelease={live.set(false);it.evaluateJavascript("matches=[];book=null;sheet=null",null);it.stopLoading();(it.parent as? android.view.ViewGroup)?.removeView(it);it.removeAllViews();it.destroy();onWeb(null)})}
+private fun blocked()=WebResourceResponse("text/plain","UTF-8",403,"Blocked",emptyMap(),byteArrayOf().inputStream())

@@ -9,3 +9,9 @@ The complete license is provided in licenses/LICENSE-jszip.txt.
 Source project: https://github.com/Stuk/jszip
 
 These libraries are packaged with the application and are used entirely offline.
+
+SheetJS Community Edition 0.20.3
+Official source: https://cdn.sheetjs.com/
+License: Apache License 2.0
+Bundled asset: excel_viewer/xlsx.full.min.js
+The complete Apache License 2.0 is already packaged in licenses/LICENSE-docx-preview.txt.

@@ -1,0 +1,7 @@
+SheetJS Community Edition 0.20.3
+Official source: https://cdn.sheetjs.com/
+License: Apache License 2.0
+Bundled asset: xlsx.full.min.js
+
+The complete Apache License 2.0 text is provided in LICENSE-Apache-2.0.txt.
+The library is packaged with the application and used entirely offline.
