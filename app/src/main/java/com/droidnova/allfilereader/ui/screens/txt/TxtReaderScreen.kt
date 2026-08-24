@@ -73,7 +73,7 @@ fun TxtReaderScreen(onBack: () -> Unit, viewModel: TxtReaderViewModel = hiltView
     }) { padding ->
         when (val content = state.content) {
             is TxtReaderContent.Loading -> Loading(padding)
-            is TxtReaderContent.Ready -> TextChunks(content.chunks, state, viewModel, listState, padding)
+            is TxtReaderContent.Ready -> TextChunks(content, state, viewModel, listState, padding)
             TxtReaderContent.Empty -> TxtMessage(R.string.txt_empty, R.string.txt_empty_message, padding, onBack)
             TxtReaderContent.NotFound -> TxtMessage(R.string.txt_not_found, R.string.txt_not_found_message, padding, onBack, viewModel::retry)
             TxtReaderContent.AccessDenied -> TxtMessage(R.string.txt_access_removed, R.string.txt_access_removed_message, padding, onBack, requestAccess, R.string.allow_access)
@@ -99,14 +99,16 @@ fun TxtReaderScreen(onBack: () -> Unit, viewModel: TxtReaderViewModel = hiltView
         })
 }
 
-@Composable private fun TextChunks(chunks: List<TextChunkIndex>, state: TxtReaderUiState, viewModel: TxtReaderViewModel, listState: androidx.compose.foundation.lazy.LazyListState, padding: PaddingValues) {
+@Composable private fun TextChunks(content: TxtReaderContent.Ready, state: TxtReaderUiState, viewModel: TxtReaderViewModel, listState: androidx.compose.foundation.lazy.LazyListState, padding: PaddingValues) {
+    val chunks = content.chunks
     val horizontal = rememberScrollState()
     LazyColumn(Modifier.fillMaxSize().padding(padding), state = listState, contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)) {
         items(chunks.size, key = { it }) { index ->
-            val text by produceState<String?>(null, index) { value = viewModel.chunk(index) }
+            val text by produceState<String?>(if (index == 0) content.firstChunkText else null, index) {
+                if (value == null) value = viewModel.chunk(index)
+            }
             val value = text
-            if (value == null) Box(Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            else Text(highlight(value, chunks[index], state), fontSize = state.fontSize.sp, lineHeight = (state.fontSize + 8).sp, softWrap = state.wordWrap,
+            if (value != null) Text(highlight(value, chunks[index], state), fontSize = state.fontSize.sp, lineHeight = (state.fontSize + 8).sp, softWrap = state.wordWrap,
                 modifier = if (state.wordWrap) Modifier.fillMaxWidth() else Modifier.horizontalScroll(horizontal).widthIn(min = 1.dp))
         }
     }

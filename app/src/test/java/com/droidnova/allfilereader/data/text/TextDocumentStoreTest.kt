@@ -7,13 +7,18 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import com.droidnova.allfilereader.ui.screens.txt.TxtReaderContent
+import com.droidnova.allfilereader.ui.screens.txt.failureContent
+import com.droidnova.allfilereader.ui.screens.txt.TxtLoadRequestGate
 import org.junit.Assert.*
 import org.junit.Test
 
 class TextDocumentStoreTest {
     private fun prepared(bytes: ByteArray): TextDocumentStore = runBlocking {
         val file = File.createTempFile("txt_test_", ".cache")
-        TextDocumentStore(file, IncrementalTextDecoder.decode(ByteArrayInputStream(bytes), file))
+        val store = TextDocumentStore(file)
+        IncrementalTextDecoder.decode(ByteArrayInputStream(bytes), file) { chunk, text -> store.addChunk(chunk, text) }
+        store
     }
 
     @Test fun utf8AndLineEndings() { prepared("one\ntwo\r\nतीन 😀".toByteArray()).use { assertEquals("one\ntwo\r\nतीन 😀", it.readChunk(0)) } }
@@ -28,4 +33,47 @@ class TextDocumentStoreTest {
     @Test fun oldSearchCanBeCancelled() = runBlocking { prepared("x".repeat(500_000).toByteArray()).use { store -> val job=launch { store.search("none") }; job.cancelAndJoin(); assertTrue(job.isCancelled) } }
     @Test fun configuredFileLimitIsEnforced() = runBlocking { val file=File.createTempFile("txt_test_", ".cache"); try { IncrementalTextDecoder.decode(ByteArrayInputStream("12345".toByteArray()),file,4); fail("Expected limit") } catch (_: TextFileTooLargeException) {} finally { file.delete() } }
     @Test fun binaryNulIsRejected() = runBlocking { val file=File.createTempFile("txt_test_", ".cache"); try { IncrementalTextDecoder.decode(ByteArrayInputStream(byteArrayOf(1,0,2)),file); fail("Expected binary rejection") } catch (_: BinaryTextException) {} finally { file.delete() } }
+
+    @Test fun initialLoadingAlwaysTransitionsToAContentTerminalState() = runBlocking {
+        prepared("small file".toByteArray()).use {
+            assertEquals("small file", it.readChunk(0))
+            assertTrue(it.chunks.isNotEmpty())
+        }
+        prepared(byteArrayOf()).use { assertTrue(it.chunks.isEmpty()) }
+        assertSame(TxtReaderContent.UnsupportedEncoding, failureContent(UnsupportedTextEncodingException()))
+        assertFalse(failureContent(java.io.IOException()) is TxtReaderContent.Loading)
+        assertSame(TxtReaderContent.NotFound, failureContent(java.io.FileNotFoundException()))
+        assertSame(TxtReaderContent.AccessDenied, failureContent(SecurityException()))
+    }
+
+    @Test fun largeFilePublishesFirstChunkBeforeIndexingCompletes() = runBlocking {
+        val file = File.createTempFile("txt_test_", ".cache")
+        var callbacks = 0
+        var chunksVisibleAtFirstCallback = -1
+        val store = TextDocumentStore(file)
+        try {
+            IncrementalTextDecoder.decode(
+                ByteArrayInputStream("नमस्ते 😀\n".repeat(20_000).toByteArray()),
+                file
+            ) { chunk, text ->
+                store.addChunk(chunk, text)
+                callbacks++
+                if (callbacks == 1) chunksVisibleAtFirstCallback = store.chunks.size
+            }
+            assertTrue(store.chunks.size > 1)
+            assertEquals(1, chunksVisibleAtFirstCallback)
+            assertEquals(store.chunks.size, callbacks)
+            assertTrue(store.readChunk(0).startsWith("नमस्ते 😀"))
+        } finally { store.close() }
+    }
+
+    @Test fun sameStableDocumentDoesNotRestartAndCancelledGenerationCannotWin() {
+        val gate = TxtLoadRequestGate()
+        val old = gate.begin("document-a")!!
+        assertNull(gate.begin("document-a"))
+        val newer = gate.begin("document-b")!!
+        assertFalse(gate.isCurrent(old))
+        assertTrue(gate.isCurrent(newer))
+        assertNotNull(gate.begin("document-b", force = true))
+    }
 }
