@@ -57,7 +57,7 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
             }
             DocumentReaderDestination.Docx, DocumentReaderDestination.LegacyWord ->
                 navController.navigate(WordReaderRoute(document.id)) { launchSingleTop = true }
-            DocumentReaderDestination.Xlsx, DocumentReaderDestination.LegacyExcel ->
+            DocumentReaderDestination.Spreadsheet ->
                 navController.navigate(ExcelReaderRoute(document.id)) { launchSingleTop = true }
             DocumentReaderDestination.FutureOffice -> coroutineScope.launch {
                 snackbarHostState.showSnackbar(officeReaderMessage)
