@@ -6,6 +6,7 @@ import java.io.*
 import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
 
@@ -29,8 +30,9 @@ data class TextSearchResult(val matches: List<TextMatch>, val truncated: Boolean
 
 class TextDocumentStore internal constructor(
     private val file: File,
-    val chunks: List<TextChunkIndex>
+    private val mutableChunks: CopyOnWriteArrayList<TextChunkIndex> = CopyOnWriteArrayList()
 ) : Closeable {
+    val chunks: List<TextChunkIndex> get() = mutableChunks
     private val cache = object : LinkedHashMap<Int, String>(TxtLimits.CACHE_CHUNKS, .75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, String>?) = size > TxtLimits.CACHE_CHUNKS
     }
@@ -76,26 +78,46 @@ class TextDocumentStore internal constructor(
     }
 
     @Synchronized fun clearCache() = cache.clear()
+    @Synchronized internal fun addChunk(chunk: TextChunkIndex, text: String) {
+        mutableChunks.add(chunk)
+        cache[mutableChunks.lastIndex] = text
+    }
     override fun close() { clearCache(); file.delete() }
 }
 
 class TextDocumentPreparer(private val resolver: ContentResolver, private val cacheDir: File) {
-    suspend fun prepare(uri: Uri, onEncodingDetected: suspend () -> Unit = {}): TextDocumentStore {
+    suspend fun prepare(
+        uri: Uri,
+        onStreamOpened: suspend () -> Unit = {},
+        onEncodingDetected: suspend () -> Unit = {},
+        onChunkPrepared: suspend (TextDocumentStore, String) -> Unit = { _, _ -> }
+    ): TextDocumentStore {
         val output = File.createTempFile("txt_session_", ".cache", cacheDir)
+        val store = TextDocumentStore(output)
         try {
             resolver.openInputStream(uri)?.use { input ->
-                val indexes = IncrementalTextDecoder.decode(input, output, onEncodingDetected = onEncodingDetected)
-                return TextDocumentStore(output, indexes)
+                onStreamOpened()
+                IncrementalTextDecoder.decode(input, output, onEncodingDetected = onEncodingDetected) { chunk, text ->
+                    store.addChunk(chunk, text)
+                    onChunkPrepared(store, text)
+                }
+                return store
             } ?: throw FileNotFoundException()
         } catch (error: Exception) {
-            output.delete()
+            store.close()
             throw error
         }
     }
 }
 
 object IncrementalTextDecoder {
-    suspend fun decode(source: InputStream, output: File, maxBytes: Long = TxtLimits.MAX_FILE_BYTES, onEncodingDetected: suspend () -> Unit = {}): List<TextChunkIndex> {
+    suspend fun decode(
+        source: InputStream,
+        output: File,
+        maxBytes: Long = TxtLimits.MAX_FILE_BYTES,
+        onEncodingDetected: suspend () -> Unit = {},
+        onChunkIndexed: suspend (TextChunkIndex, String) -> Unit = { _, _ -> }
+    ): List<TextChunkIndex> {
         val counted = BoundedInputStream(BufferedInputStream(source, TxtLimits.READ_BUFFER_BYTES), maxBytes)
         val input = PushbackInputStream(counted, 4096)
         val sample = ByteArray(4096)
@@ -127,10 +149,15 @@ object IncrementalTextDecoder {
                     if (Character.isHighSurrogate(chars[count - 1]) || chars[count - 1] == '\r') {
                         val next = reader.read(); if (next >= 0) chars[count++] = next.toChar()
                     }
-                    val bytes = String(chars, 0, count).toByteArray(StandardCharsets.UTF_8)
+                    val text = String(chars, 0, count)
+                    val bytes = text.toByteArray(StandardCharsets.UTF_8)
                     if (byteOffset + bytes.size > TxtLimits.MAX_DECODED_CACHE_BYTES) throw TextFileTooLargeException()
                     target.write(bytes)
-                    indexes += TextChunkIndex(byteOffset, bytes.size, characterOffset, count)
+                    // Make the newly indexed range readable before publishing it to the UI.
+                    target.flush()
+                    val chunk = TextChunkIndex(byteOffset, bytes.size, characterOffset, count)
+                    indexes += chunk
+                    onChunkIndexed(chunk, text)
                     byteOffset += bytes.size; characterOffset += count
                 }
             }
