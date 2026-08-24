@@ -116,6 +116,7 @@ fun WordReaderScreen(onBack: () -> Unit, viewModel: WordReaderViewModel = hiltVi
 
 @Composable private fun Loading(padding: PaddingValues) = Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchBar(query: String, position: Int, total: Int, onQuery: (String) -> Unit, onPrevious: () -> Unit, onNext: () -> Unit, onClose: () -> Unit) {
     TopAppBar(title = { TextField(query, onQuery, Modifier.fillMaxWidth(), placeholder = { Text(stringResource(R.string.word_search)) }, singleLine = true,
