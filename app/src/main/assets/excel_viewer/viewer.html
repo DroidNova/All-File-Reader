@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=5,user-scalable=yes">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none';">
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <main id="app" class="spreadsheet-shell">
+    <div id="notice">Loading workbook…</div>
+    <div id="viewport" class="spreadsheet-scroll-host"><div id="surface"></div></div>
+    <div id="tabs"></div>
+  </main>
+  <script src="xlsx.full.min.js"></script>
+  <script src="viewer.js"></script>
+</body>
+</html>
