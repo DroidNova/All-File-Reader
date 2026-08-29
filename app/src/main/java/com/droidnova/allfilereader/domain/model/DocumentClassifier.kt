@@ -20,7 +20,7 @@ object DocumentClassifier {
                 DocumentCategory.Word
             normalizedMimeType in excelMimeTypes || normalizedExtension in spreadsheetExtensions ->
                 DocumentCategory.Excel
-            normalizedMimeType in powerPointMimeTypes || normalizedExtension in setOf("ppt", "pptx") ->
+            normalizedMimeType in powerPointMimeTypes || normalizedExtension in setOf("ppt", "pptx", "pptm", "pps", "ppsx") ->
                 DocumentCategory.PowerPoint
             normalizedMimeType == "text/plain" || normalizedExtension == "txt" -> DocumentCategory.Text
             else -> DocumentCategory.Other
@@ -42,6 +42,8 @@ object DocumentClassifier {
     )
     private val powerPointMimeTypes = setOf(
         "application/vnd.ms-powerpoint",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-powerpoint.presentation.macroenabled.12",
+        "application/vnd.openxmlformats-officedocument.presentationml.slideshow"
     )
 }
