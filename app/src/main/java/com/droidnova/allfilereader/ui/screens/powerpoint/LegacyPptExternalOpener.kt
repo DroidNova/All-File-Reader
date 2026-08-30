@@ -5,6 +5,8 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
+import com.droidnova.allfilereader.BuildConfig
 
 enum class LegacyPptOpenResult { Launched, NoCompatibleApp, AccessDenied }
 
@@ -12,14 +14,18 @@ object LegacyPptExternalOpener {
     const val MIME_TYPE = "application/vnd.ms-powerpoint"
 
     fun open(context: Context, uri: Uri): LegacyPptOpenResult {
-        if (uri.scheme != ContentResolverScheme) return LegacyPptOpenResult.AccessDenied
+        if (uri.scheme != ContentResolverScheme) {
+            trace("stage=uri_validation scheme=${uri.scheme ?: "none"} authority=${authority(uri)} sourceType=share extension=ppt code=UNSUPPORTED_SOURCE")
+            return LegacyPptOpenResult.AccessDenied
+        }
         val viewIntent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, MIME_TYPE)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             clipData = ClipData.newRawUri("legacy-presentation", uri)
         }
         val canResolve = viewIntent.resolveActivity(context.packageManager) != null
-        return launch(canResolve) {
+        trace("stage=chooser_resolution scheme=content authority=${authority(uri)} sourceType=share extension=ppt code=${if (canResolve) "HANDLER_FOUND" else "NO_COMPATIBLE_APP"}")
+        return launch(canResolve, { code, exception -> trace("stage=chooser_launch scheme=content authority=${authority(uri)} sourceType=share extension=ppt exception=${exception ?: "none"} code=$code") }) {
             val chooser = Intent.createChooser(viewIntent, "Open legacy PowerPoint presentation").apply {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
@@ -27,17 +33,23 @@ object LegacyPptExternalOpener {
         }
     }
 
-    internal fun launch(canResolve: Boolean, launcher: () -> Unit): LegacyPptOpenResult {
+    internal fun launch(canResolve: Boolean, logger: (String, String?) -> Unit = { _, _ -> }, launcher: () -> Unit): LegacyPptOpenResult {
         if (!canResolve) return LegacyPptOpenResult.NoCompatibleApp
         return try {
             launcher()
+            logger("LAUNCHED", null)
             LegacyPptOpenResult.Launched
-        } catch (_: ActivityNotFoundException) {
+        } catch (error: ActivityNotFoundException) {
+            logger("NO_COMPATIBLE_APP", error.javaClass.simpleName)
             LegacyPptOpenResult.NoCompatibleApp
-        } catch (_: SecurityException) {
+        } catch (error: SecurityException) {
+            logger("CHOOSER_SECURITY_FAILURE", error.javaClass.simpleName)
             LegacyPptOpenResult.AccessDenied
         }
     }
+
+    private fun authority(uri: Uri) = uri.authority?.take(80)?.replace(Regex("[^A-Za-z0-9._-]"), "_") ?: "none"
+    private fun trace(message: String) { if (BuildConfig.DEBUG) Log.d("LegacyPptOpen", message) }
 
     private const val ContentResolverScheme = "content"
 }
