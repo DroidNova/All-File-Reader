@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -25,6 +26,7 @@ import org.json.*
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable fun PowerPointReaderScreen(onBack:()->Unit,vm:PowerPointReaderViewModel=hiltViewModel()){
  val s by vm.state.collectAsStateWithLifecycle();var web by remember{mutableStateOf<WebView?>(null)};var search by remember{mutableStateOf(false)};var query by remember{mutableStateOf("")};var current by remember{mutableIntStateOf(0)};var total by remember{mutableIntStateOf(0)};var slide by remember{mutableIntStateOf(0)};var slides by remember{mutableIntStateOf(0)};var preparingLegacy by remember{mutableStateOf(false)};val scope=rememberCoroutineScope();val access=rememberStorageAccessRequest(vm::onResume);val context=LocalContext.current
  if(s.phase==PptxPhase.LegacyValid){AlertDialog(onDismissRequest=onBack,title={Text("Legacy PowerPoint presentation")},text={Text("This presentation uses the older PowerPoint format. You can open it with a compatible app installed on your device.")},confirmButton={TextButton(enabled=!preparingLegacy,onClick={if(!preparingLegacy){preparingLegacy=true;scope.launch{try{vm.prepareLegacyShare()?.let{vm.legacyOpenResult(LegacyPptExternalOpener.open(context,it))}}finally{preparingLegacy=false}}}}){Text("Open with another app")}},dismissButton={TextButton(onClick=onBack){Text("Cancel")}})}

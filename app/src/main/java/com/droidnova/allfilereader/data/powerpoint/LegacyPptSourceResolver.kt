@@ -1,10 +1,10 @@
 package com.droidnova.allfilereader.data.powerpoint
 
 import android.content.Context
+import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.util.Log
 import androidx.core.content.FileProvider
-import com.droidnova.allfilereader.BuildConfig
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -39,6 +39,7 @@ internal sealed interface LegacyPptShareResult {
 internal class LegacyPptSourceResolver(private val context: Context) {
     private val resolver = context.contentResolver
     private val shareDirectory = File(context.cacheDir, SHARE_DIRECTORY)
+    private val debugLogging = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
 
     init { cleanupExpiredShares() }
 
@@ -183,8 +184,9 @@ internal class LegacyPptSourceResolver(private val context: Context) {
 
         private fun safeAuthority(uri: Uri?): String = uri?.authority?.take(80)?.replace(Regex("[^A-Za-z0-9._-]"), "_") ?: "none"
         private fun sourceType(scheme: String?): String = when (scheme) { "content" -> "content"; "file", null, "" -> "local"; else -> "unsupported" }
-        private fun trace(message: String) { if (BuildConfig.DEBUG) Log.d("LegacyPptOpen", message) }
     }
+
+    private fun trace(message: String) { if (debugLogging) Log.d("LegacyPptOpen", message) }
 
     private class ShareLimitException : IOException()
     private class EmptyShareException : IOException()
