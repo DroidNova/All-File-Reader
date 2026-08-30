@@ -35,6 +35,7 @@ import com.droidnova.allfilereader.ui.screens.pdf.PdfReaderScreen
 import com.droidnova.allfilereader.ui.screens.txt.TxtReaderScreen
 import com.droidnova.allfilereader.ui.screens.word.WordReaderScreen
 import com.droidnova.allfilereader.ui.screens.excel.ExcelReaderScreen
+import com.droidnova.allfilereader.ui.screens.powerpoint.PowerPointReaderScreen
 import kotlinx.coroutines.launch
 
 @Composable
@@ -45,7 +46,6 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val unavailableMessage = stringResource(R.string.reader_unavailable)
-    val officeReaderMessage = stringResource(R.string.office_reader_later)
     val onDocumentClick: (DocumentFile) -> Unit = { document ->
         fileNavigationViewModel.remember(document)
         when (DocumentReaderResolver.resolve(document)) {
@@ -59,9 +59,7 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
                 navController.navigate(WordReaderRoute(document.id)) { launchSingleTop = true }
             DocumentReaderDestination.Spreadsheet ->
                 navController.navigate(ExcelReaderRoute(document.id)) { launchSingleTop = true }
-            DocumentReaderDestination.FutureOffice -> coroutineScope.launch {
-                snackbarHostState.showSnackbar(officeReaderMessage)
-            }
+            DocumentReaderDestination.PowerPoint -> navController.navigate(PowerPointReaderRoute(document.id)) { launchSingleTop = true }
             DocumentReaderDestination.Unsupported -> coroutineScope.launch {
                 snackbarHostState.showSnackbar(unavailableMessage)
             }
@@ -153,6 +151,9 @@ fun AllFileReaderApp(fileNavigationViewModel: FileNavigationViewModel = hiltView
             }
             composable<ExcelReaderRoute> {
                 ExcelReaderScreen(onBack = { navController.popBackStack() })
+            }
+            composable<PowerPointReaderRoute> {
+                PowerPointReaderScreen(onBack = { navController.popBackStack() })
             }
         }
     }

@@ -1,0 +1,5 @@
+This application bundles @aiden0z/pptx-renderer version 1.2.4.
+Project: https://github.com/aiden0z/pptx-renderer
+License: Apache-2.0 (see licenses/LICENSE-aiden0z-pptx-renderer.txt)
+
+This notice is maintained by the All File Reader application; it was not supplied by the package.

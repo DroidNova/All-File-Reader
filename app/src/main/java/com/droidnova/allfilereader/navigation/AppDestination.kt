@@ -20,5 +20,6 @@ import kotlin.reflect.KClass
 @Serializable data class TxtReaderRoute(val documentId: String)
 @Serializable data class WordReaderRoute(val documentId: String)
 @Serializable data class ExcelReaderRoute(val documentId: String)
+@Serializable data class PowerPointReaderRoute(val documentId: String)
 
 enum class AppDestination(val route:Any,val routeClass:KClass<*>,@param:StringRes val labelResId:Int,val icon:ImageVector){Home(HomeRoute,HomeRoute::class,R.string.home,Icons.Default.Home),Recent(RecentRoute,RecentRoute::class,R.string.recent,Icons.Default.History),Settings(SettingsRoute,SettingsRoute::class,R.string.settings,Icons.Default.Settings)}
