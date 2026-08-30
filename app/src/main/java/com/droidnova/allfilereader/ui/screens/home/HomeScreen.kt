@@ -28,6 +28,10 @@ import com.droidnova.allfilereader.ui.components.rememberStorageAccessRequest
 import com.droidnova.allfilereader.ui.screens.category.FileCategory
 
 private data class HomeCategory(@StringRes val label:Int,val icon:ImageVector,val color:Color,val category:FileCategory?=null,val special:String?=null,val model:DocumentCategory?=null)
+// Keep the directory feature wired for easy restoration; only its Home entry is hidden.
+internal const val SHOW_DIRECTORIES_ON_HOME = false
+internal fun isHomeCategoryVisible(special: String?): Boolean =
+    special != "directories" || SHOW_DIRECTORIES_ON_HOME
 @Composable fun HomeScreen(onCategorySelected:(String)->Unit,onDirectoriesSelected:()->Unit,onFavoritesSelected:()->Unit,viewModel:HomeViewModel=hiltViewModel()){
  val state by viewModel.uiState.collectAsStateWithLifecycle();LifecycleResumeEffect(Unit){viewModel.onResume();onPauseOrDispose{}}
  val request=rememberStorageAccessRequest(viewModel::onResume)
@@ -38,10 +42,11 @@ private data class HomeCategory(@StringRes val label:Int,val icon:ImageVector,va
  Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),topBar={TopAppBar(title={Text(stringResource(R.string.app_name))})}){pad->
   PullToRefreshBox(state.isRefreshing,onRefresh,Modifier.fillMaxSize().padding(pad)){
    val c=MaterialTheme.colorScheme;val cards=listOf(
-    HomeCategory(R.string.category_all,Icons.Default.InsertDriveFile,c.primary,FileCategory.All,model=null),HomeCategory(R.string.pdf,Icons.Default.PictureAsPdf,c.error,FileCategory.Pdf,model=DocumentCategory.Pdf),
+    HomeCategory(R.string.all_files,Icons.Default.InsertDriveFile,c.primary,FileCategory.All,model=null),HomeCategory(R.string.pdf,Icons.Default.PictureAsPdf,c.error,FileCategory.Pdf,model=DocumentCategory.Pdf),
     HomeCategory(R.string.word,Icons.Default.Description,c.secondary,FileCategory.Word,model=DocumentCategory.Word),HomeCategory(R.string.excel,Icons.Default.TableChart,c.tertiary,FileCategory.Excel,model=DocumentCategory.Excel),
     HomeCategory(R.string.ppt,Icons.Default.Slideshow,c.error,FileCategory.PowerPoint,model=DocumentCategory.PowerPoint),HomeCategory(R.string.txt,Icons.Default.TextSnippet,c.onSurfaceVariant,FileCategory.Text,model=DocumentCategory.Text),
     HomeCategory(R.string.directories,Icons.Default.Folder,c.tertiary,special="directories"),HomeCategory(R.string.favorites,Icons.Outlined.FavoriteBorder,c.primary,special="favorites"))
+    .filter { isHomeCategoryVisible(it.special) }
    LazyVerticalGrid(GridCells.Fixed(2),contentPadding=PaddingValues(16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
     if(!state.hasAccess&&!state.permissionDismissed)item(span={androidx.compose.foundation.lazy.grid.GridItemSpan(2)}){PermissionCard(onAllow,onNotNow)}
     items(cards,key={it.label}){card->
