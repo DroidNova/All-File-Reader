@@ -3,7 +3,6 @@ package com.droidnova.allfilereader.data.excel
 import android.content.ContentResolver
 import android.net.Uri
 import android.util.Log
-import com.droidnova.allfilereader.BuildConfig
 import java.io.EOFException
 import java.io.File
 import java.io.FileNotFoundException
@@ -15,6 +14,7 @@ import java.util.zip.ZipException
 import java.util.zip.ZipFile
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
+import com.droidnova.allfilereader.BuildConfig
 
 internal object SpreadsheetLimits {
     const val MAX_INPUT_BYTES = 50L * 1024 * 1024

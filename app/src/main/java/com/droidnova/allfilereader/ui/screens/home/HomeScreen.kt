@@ -35,7 +35,13 @@ private data class HomeCategory(@StringRes val label:Int,val icon:ImageVector,va
 }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable internal fun HomeScreenContent(state:HomeUiState,onRefresh:()->Unit,onAllow:()->Unit,onNotNow:()->Unit,onCategory:(String)->Unit,onDirectories:()->Unit,onFavorites:()->Unit){
- Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),topBar={TopAppBar(title={Text(stringResource(R.string.app_name))})}){pad->
+ Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),topBar={
+     TopAppBar(title={Text(stringResource(R.string.app_name))},
+         colors = TopAppBarDefaults.topAppBarColors(
+             containerColor = MaterialTheme.colorScheme.background
+         )
+         )})
+ {pad->
   PullToRefreshBox(state.isRefreshing,onRefresh,Modifier.fillMaxSize().padding(pad)){
    val c=MaterialTheme.colorScheme;val cards=listOf(
     HomeCategory(R.string.category_all,Icons.Default.InsertDriveFile,c.primary,FileCategory.All,model=null),HomeCategory(R.string.pdf,Icons.Default.PictureAsPdf,c.error,FileCategory.Pdf,model=DocumentCategory.Pdf),
