@@ -37,9 +37,15 @@ fun FoldersScreen(onNavigateHome: () -> Unit, onDocumentClick: (DocumentFile) ->
     val back = { if (!viewModel.navigateBack()) onNavigateHome() }
     BackHandler(onBack = back)
     val request = rememberStorageAccessRequest(viewModel::onResume)
-    Scaffold(topBar = { TopAppBar(title = { Text(state.currentFolderName ?: stringResource(R.string.directories), maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
-        IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, stringResource(R.string.back)) }
-    }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(
+        title = { Text(state.currentFolderName ?: stringResource(R.string.directories), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+        navigationIcon = {
+            IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, stringResource(R.string.back)) }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background
+        )
+    ) }) { padding ->
         val refreshing = entries.loadState.refresh is LoadState.Loading && entries.itemCount > 0
         PullToRefreshBox(refreshing, entries::refresh, Modifier.fillMaxSize().padding(padding)) {
             when {
