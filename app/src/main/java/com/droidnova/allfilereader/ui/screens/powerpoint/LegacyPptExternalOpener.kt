@@ -4,6 +4,7 @@ import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
+import android.content.ComponentName
 import android.content.pm.ApplicationInfo
 import android.net.Uri
 import android.util.Log
@@ -23,11 +24,16 @@ object LegacyPptExternalOpener {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             clipData = ClipData.newRawUri("legacy-presentation", uri)
         }
-        val canResolve = viewIntent.resolveActivity(context.packageManager) != null
+        val externalHandlers = context.packageManager.queryIntentActivities(viewIntent, 0)
+            .map { ComponentName(it.activityInfo.packageName, it.activityInfo.name) }
+            .filterNot { it.packageName == context.packageName }
+            .distinct()
+        val canResolve = externalHandlers.isNotEmpty()
         trace(context, "stage=chooser_resolution scheme=content authority=${authority(uri)} sourceType=share extension=ppt code=${if (canResolve) "HANDLER_FOUND" else "NO_COMPATIBLE_APP"}")
         return launch(canResolve, { code, exception -> trace(context, "stage=chooser_launch scheme=content authority=${authority(uri)} sourceType=share extension=ppt exception=${exception ?: "none"} code=$code") }) {
             val chooser = Intent.createChooser(viewIntent, "Open legacy PowerPoint presentation").apply {
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(context.packageName, "${context.packageName}.MainActivity")))
             }
             context.startActivity(chooser)
         }
