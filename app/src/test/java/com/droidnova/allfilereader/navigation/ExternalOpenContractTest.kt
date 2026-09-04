@@ -20,7 +20,7 @@ class ExternalOpenContractTest {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel",
             "application/vnd.ms-excel.sheet.macroenabled.12", "application/vnd.ms-excel.sheet.binary.macroenabled.12",
             "application/vnd.oasis.opendocument.spreadsheet", "text/csv", "text/tab-separated-values",
-            "application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/vnd.ms-powerpoint"
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation"
         ), advertised)
         assertTrue("android.intent.action.VIEW" in viewFilter)
         assertTrue("android.intent.category.DEFAULT" in viewFilter)
@@ -28,6 +28,8 @@ class ExternalOpenContractTest {
         assertFalse("BROWSABLE" in viewFilter)
         assertFalse("android:scheme" in viewFilter)
         assertFalse("android.intent.action.SEND" in manifest)
+        assertFalse("application/vnd.ms-powerpoint" in viewFilter)
+        assertFalse("application/msword" in viewFilter)
     }
 
     @Test fun `activity consumes cold and warm intents without restoring the launch intent`() {

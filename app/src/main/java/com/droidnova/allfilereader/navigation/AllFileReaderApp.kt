@@ -218,7 +218,7 @@ fun AllFileReaderApp(
     val failure = incomingState as? IncomingUiState.Failure
     if (failure != null && accessState == StorageAccessState.Granted) {
         val (title, message) = when (failure.reason) {
-            IncomingError.Unsupported -> R.string.incoming_unsupported_title to R.string.incoming_unsupported_message
+            IncomingError.Unsupported, IncomingError.AmbiguousUri -> R.string.incoming_unsupported_title to R.string.incoming_unsupported_message
             IncomingError.FormatMismatch -> R.string.incoming_mismatch_title to R.string.incoming_mismatch_message
             IncomingError.AccessDenied -> R.string.incoming_access_title to R.string.incoming_access_message
             IncomingError.MissingUri -> R.string.incoming_missing_title to R.string.incoming_missing_message

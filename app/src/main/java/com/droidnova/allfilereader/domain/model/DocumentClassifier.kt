@@ -12,12 +12,11 @@ object DocumentClassifier {
         "application/vnd.ms-excel.sheet.binary.macroenabled.12",
         "application/vnd.oasis.opendocument.spreadsheet", "text/csv",
         "text/tab-separated-values",
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        "application/vnd.ms-powerpoint"
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
     )
 
     val incomingExtensions: Set<String> = setOf(
-        "pdf", "txt", "docx", "xlsx", "xls", "xlsm", "xlsb", "ods", "csv", "tsv", "pptx", "ppt"
+        "pdf", "txt", "docx", "xlsx", "xls", "xlsm", "xlsb", "ods", "csv", "tsv", "pptx"
     )
 
     fun extensionOf(displayName: String): String? = displayName

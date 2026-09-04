@@ -58,7 +58,6 @@
                 <data android:mimeType="text/csv" />
                 <data android:mimeType="text/tab-separated-values" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
-                <data android:mimeType="application/vnd.ms-powerpoint" />
             </intent-filter>
         </activity>
     </application>

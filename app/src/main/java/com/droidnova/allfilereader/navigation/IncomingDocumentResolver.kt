@@ -1,11 +1,11 @@
 package com.droidnova.allfilereader.navigation
 
 import android.content.ContentResolver
-import android.content.Intent
 import android.database.Cursor
 import android.net.Uri
 import android.provider.OpenableColumns
-import com.droidnova.allfilereader.domain.model.DocumentCategory
+import android.util.Log
+import com.droidnova.allfilereader.BuildConfig
 import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.model.DocumentFile
 import com.droidnova.allfilereader.domain.model.DocumentIds
@@ -14,7 +14,7 @@ import com.droidnova.allfilereader.domain.reader.DocumentReaderResolver
 import java.io.FileNotFoundException
 import java.util.Locale
 
-enum class IncomingError { MissingUri, Unsupported, FormatMismatch, AccessDenied }
+enum class IncomingError { MissingUri, AmbiguousUri, Unsupported, FormatMismatch, AccessDenied }
 sealed interface IncomingResolution {
     data class Ready(val document: DocumentFile, val destination: DocumentReaderDestination) : IncomingResolution
     data class Error(val reason: IncomingError) : IncomingResolution
@@ -22,11 +22,12 @@ sealed interface IncomingResolution {
 
 /** Strict boundary between untrusted Android intents/providers and the existing readers. */
 class IncomingDocumentResolver(private val contentResolver: ContentResolver) {
-    fun resolve(intent: Intent): IncomingResolution {
-        if (intent.action != Intent.ACTION_VIEW) return IncomingResolution.Error(IncomingError.MissingUri)
-        val uri = intent.data ?: return IncomingResolution.Error(IncomingError.MissingUri)
+    fun resolve(request: IncomingRequest): IncomingResolution {
+        val uri = request.uri
+        trace("source_resolution stage=start scheme=${uri.scheme ?: "none"} authority=${safeAuthority(uri)} read_grant=${request.readGrantFlags != 0}")
         if (uri.scheme != ContentResolver.SCHEME_CONTENT || uri.authority.isNullOrBlank()) {
-            return IncomingResolution.Error(IncomingError.MissingUri)
+            trace("source_resolution stage=uri_validation scheme=${uri.scheme ?: "none"} authority=${safeAuthority(uri)} code=UNSUPPORTED_URI")
+            return IncomingResolution.Error(IncomingError.Unsupported)
         }
         return try {
             val metadata = query(uri)
@@ -34,7 +35,7 @@ class IncomingDocumentResolver(private val contentResolver: ContentResolver) {
             contentResolver.openAssetFileDescriptor(uri, "r")?.use { descriptor ->
                 if (descriptor.length == 0L) { /* Readers retain their accurate empty-file states. */ }
             } ?: throw FileNotFoundException()
-            val declared = normalizeMime(intent.type)
+            val declared = normalizeMime(request.declaredMimeType)
             val reported = normalizeMime(contentResolver.getType(uri))
             if (declared != null && reported != null && !isGenericMime(declared) && !isGenericMime(reported) && declared != reported) {
                 return IncomingResolution.Error(IncomingError.FormatMismatch)
@@ -65,12 +66,18 @@ class IncomingDocumentResolver(private val contentResolver: ContentResolver) {
             val destination = DocumentReaderResolver.resolve(document)
             if (destination == DocumentReaderDestination.Unsupported || destination == DocumentReaderDestination.LegacyWord) {
                 IncomingResolution.Error(IncomingError.Unsupported)
-            } else IncomingResolution.Ready(document, destination)
-        } catch (_: SecurityException) {
+            } else {
+                trace("source_resolution stage=complete selected_reader=${destination.name} code=READY")
+                IncomingResolution.Ready(document, destination)
+            }
+        } catch (error: SecurityException) {
+            trace("source_resolution stage=read exception=${error.javaClass.simpleName} code=ACCESS_DENIED")
             IncomingResolution.Error(IncomingError.AccessDenied)
-        } catch (_: FileNotFoundException) {
+        } catch (error: FileNotFoundException) {
+            trace("source_resolution stage=read exception=${error.javaClass.simpleName} code=SOURCE_MISSING")
             IncomingResolution.Error(IncomingError.AccessDenied)
-        } catch (_: RuntimeException) {
+        } catch (error: RuntimeException) {
+            trace("source_resolution stage=provider exception=${error.javaClass.simpleName} code=PROVIDER_FAILURE")
             IncomingResolution.Error(IncomingError.AccessDenied)
         }
     }
@@ -106,7 +113,6 @@ class IncomingDocumentResolver(private val contentResolver: ContentResolver) {
         "text/csv" -> extension == "csv"
         "text/tab-separated-values" -> extension == "tsv"
         "application/vnd.openxmlformats-officedocument.presentationml.presentation" -> extension == "pptx"
-        "application/vnd.ms-powerpoint" -> extension == "ppt"
         else -> false
     }
 
@@ -120,7 +126,7 @@ class IncomingDocumentResolver(private val contentResolver: ContentResolver) {
         return when (extension) {
             "pdf" -> count >= 5 && String(header, 0, 5, Charsets.US_ASCII) == "%PDF-"
             "docx", "xlsx", "xlsm", "xlsb", "ods", "pptx" -> zip
-            "xls", "ppt" -> ole
+            "xls" -> ole
             "txt", "csv", "tsv" -> header.take(count).none { it == 0.toByte() }
             else -> false
         }
@@ -130,4 +136,7 @@ class IncomingDocumentResolver(private val contentResolver: ContentResolver) {
         val PROJECTION = arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
         val OLE = byteArrayOf(0xD0.toByte(), 0xCF.toByte(), 0x11, 0xE0.toByte(), 0xA1.toByte(), 0xB1.toByte(), 0x1A, 0xE1.toByte())
     }
+
+    private fun safeAuthority(uri: Uri) = uri.authority?.take(80)?.replace(Regex("[^A-Za-z0-9._-]"), "_") ?: "none"
+    private fun trace(message: String) { if (BuildConfig.DEBUG) Log.d("ExternalDocumentOpen", message) }
 }

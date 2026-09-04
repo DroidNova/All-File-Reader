@@ -46,7 +46,7 @@
 <string name="txt_word_wrap">Word wrap</string>
 <string name="reader_unavailable">A reader for this file type is not available yet.</string>
 <string name="incoming_unsupported_title">File type not supported</string>
-<string name="incoming_unsupported_message">All File Reader cannot open this type of file yet.</string>
+<string name="incoming_unsupported_message">All File Reader cannot open this file type yet.</string>
 <string name="incoming_mismatch_title">File format does not match</string>
 <string name="incoming_mismatch_message">The file name and file type do not match.</string>
 <string name="incoming_access_title">File could not be accessed</string>
