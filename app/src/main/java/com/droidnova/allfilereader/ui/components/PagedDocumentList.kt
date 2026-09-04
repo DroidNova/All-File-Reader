@@ -34,6 +34,9 @@ fun PagedDocumentList(
     onAllow: () -> Unit,
     onNotNow: () -> Unit,
     onDocumentClick: (DocumentFile) -> Unit,
+    favoriteIds: Set<String> = emptySet(),
+    favoriteUpdatesInProgress: Set<String> = emptySet(),
+    onFavoriteToggle: (DocumentFile) -> Unit = {},
     listState: LazyListState = rememberLazyListState()
 ) {
     val refreshing = documents.loadState.refresh is LoadState.Loading && documents.itemCount > 0
@@ -58,7 +61,13 @@ fun PagedDocumentList(
             else -> LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(documents.itemCount, key = documents.itemKey(DocumentFile::id)) { index ->
                     documents[index]?.let { document ->
-                        DocumentFileRow(document = document, onClick = { onDocumentClick(document) })
+                        DocumentFileRow(
+                            document = document,
+                            onClick = { onDocumentClick(document) },
+                            isFavorite = document.id in favoriteIds,
+                            favoriteEnabled = document.id !in favoriteUpdatesInProgress,
+                            onFavoriteToggle = { onFavoriteToggle(document) }
+                        )
                     }
                 }
                 when (documents.loadState.append) {

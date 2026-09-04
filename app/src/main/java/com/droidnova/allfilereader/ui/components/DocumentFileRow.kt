@@ -19,7 +19,10 @@ import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Slideshow
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TextSnippet
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -42,6 +45,9 @@ import java.util.Locale
 fun DocumentFileRow(
     document: DocumentFile,
     onClick: () -> Unit,
+    isFavorite: Boolean = document.isBookmarked,
+    favoriteEnabled: Boolean = true,
+    onFavoriteToggle: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val type = document.extension?.uppercase(Locale.getDefault())
@@ -80,6 +86,21 @@ fun DocumentFileRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+            }
+            onFavoriteToggle?.let { toggle ->
+                val action = stringResource(if (isFavorite) R.string.remove_from_favorites else R.string.add_to_favorites)
+                IconToggleButton(
+                    checked = isFavorite,
+                    onCheckedChange = { toggle() },
+                    enabled = favoriteEnabled,
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Default.Star else Icons.Outlined.StarBorder,
+                        contentDescription = action,
+                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         }
     }

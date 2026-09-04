@@ -11,6 +11,8 @@ import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -33,11 +35,16 @@ import com.droidnova.allfilereader.ui.screens.home.PermissionCard
 fun FoldersScreen(onNavigateHome: () -> Unit, onDocumentClick: (DocumentFile) -> Unit, viewModel: FoldersViewModel = hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val entries = viewModel.entries.collectAsLazyPagingItems()
+    val favoriteIds by viewModel.favoriteIds.collectAsStateWithLifecycle(emptySet())
+    val favoriteUpdates by viewModel.favoriteUpdates.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val favoriteError = stringResource(R.string.favorites_update_failed)
+    LaunchedEffect(Unit) { viewModel.favoriteErrors.collect { snackbar.showSnackbar(favoriteError) } }
     LifecycleResumeEffect(Unit) { viewModel.onResume(); onPauseOrDispose {} }
     val back = { if (!viewModel.navigateBack()) onNavigateHome() }
     BackHandler(onBack = back)
     val request = rememberStorageAccessRequest(viewModel::onResume)
-    Scaffold(topBar = { TopAppBar(title = { Text(state.currentFolderName ?: stringResource(R.string.directories), maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
+    Scaffold(snackbarHost = { SnackbarHost(snackbar) }, topBar = { TopAppBar(title = { Text(state.currentFolderName ?: stringResource(R.string.directories), maxLines = 1, overflow = TextOverflow.Ellipsis) }, navigationIcon = {
         IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, stringResource(R.string.back)) }
     }) }) { padding ->
         val refreshing = entries.loadState.refresh is LoadState.Loading && entries.itemCount > 0
@@ -52,7 +59,13 @@ fun FoldersScreen(onNavigateHome: () -> Unit, onDocumentClick: (DocumentFile) ->
                         if (entry.isDirectory) FolderRow(entry, state.isShowingRoots) { viewModel.open(entry) }
                         else {
                             val document = entry.asDocument()
-                            DocumentFileRow(document = document, onClick = { onDocumentClick(document) })
+                            DocumentFileRow(
+                                document = document,
+                                onClick = { onDocumentClick(document) },
+                                isFavorite = document.id in favoriteIds,
+                                favoriteEnabled = document.id !in favoriteUpdates,
+                                onFavoriteToggle = { viewModel.toggleFavorite(document) }
+                            )
                         }
                     } }
                     when (entries.loadState.append) {

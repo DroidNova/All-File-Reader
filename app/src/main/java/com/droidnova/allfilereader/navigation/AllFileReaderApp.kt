@@ -160,7 +160,8 @@ fun AllFileReaderApp(
             }
             composable<FavoritesRoute> {
                 FavoritesScreen(
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onDocumentClick = onDocumentClick
                 )
             }
             composable<PdfReaderRoute> {

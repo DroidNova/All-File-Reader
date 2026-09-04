@@ -17,6 +17,7 @@ import com.droidnova.allfilereader.R
 import com.droidnova.allfilereader.domain.model.DocumentFile
 import com.droidnova.allfilereader.ui.components.PagedDocumentList
 import com.droidnova.allfilereader.ui.components.rememberStorageAccessRequest
+import kotlinx.coroutines.flow.collect
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,11 +25,16 @@ fun FilesScreen(onDocumentClick: (DocumentFile) -> Unit, viewModel: FilesViewMod
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val documents = viewModel.documents.collectAsLazyPagingItems()
     val selectedFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
+    val favoriteIds by viewModel.favoriteIds.collectAsStateWithLifecycle(emptySet())
+    val favoriteUpdates by viewModel.favoriteUpdates.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    val favoriteError = stringResource(R.string.favorites_update_failed)
+    LaunchedEffect(Unit) { viewModel.favoriteErrors.collect { snackbar.showSnackbar(favoriteError) } }
     val listState = rememberLazyListState()
     LaunchedEffect(selectedFilter) { listState.scrollToItem(0) }
     LifecycleResumeEffect(Unit) { viewModel.onResume(); onPauseOrDispose {} }
     val request = rememberStorageAccessRequest(viewModel::onResume)
-    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), topBar = { Column { TopAppBar(title = { Text(stringResource(R.string.recent)) }); RecentFilterRow(selectedFilter, viewModel::selectFilter) } }) { padding ->
+    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), snackbarHost = { SnackbarHost(snackbar) }, topBar = { Column { TopAppBar(title = { Text(stringResource(R.string.recent)) }); RecentFilterRow(selectedFilter, viewModel::selectFilter) } }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             val emptyTitle = when (selectedFilter) {
                 RecentDocumentFilter.All -> R.string.no_recent_files
@@ -40,7 +46,8 @@ fun FilesScreen(onDocumentClick: (DocumentFile) -> Unit, viewModel: FilesViewMod
             }
             PagedDocumentList(documents, state.hasAccess, state.permissionPromptDismissed,
                 emptyTitle, R.string.no_recent_files_supporting_text,
-                viewModel::prepareRefresh, request, viewModel::dismissPermissionPrompt, onDocumentClick, listState)
+                viewModel::prepareRefresh, request, viewModel::dismissPermissionPrompt, onDocumentClick,
+                favoriteIds, favoriteUpdates, viewModel::toggleFavorite, listState)
         }
     }
 }
