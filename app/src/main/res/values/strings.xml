@@ -45,6 +45,14 @@
 <string name="txt_reset_font_size">Reset font size</string>
 <string name="txt_word_wrap">Word wrap</string>
 <string name="reader_unavailable">A reader for this file type is not available yet.</string>
+<string name="incoming_unsupported_title">File type not supported</string>
+<string name="incoming_unsupported_message">All File Reader cannot open this type of file yet.</string>
+<string name="incoming_mismatch_title">File format does not match</string>
+<string name="incoming_mismatch_message">The file name and file type do not match.</string>
+<string name="incoming_access_title">File could not be accessed</string>
+<string name="incoming_access_message">Access to this file is no longer available. Open it again from the original app.</string>
+<string name="incoming_missing_title">File could not be opened</string>
+<string name="incoming_missing_message">No readable file was provided.</string>
 <string name="office_reader_later">Office reader will be added in a later step.</string>
 <string name="word_reader">Word Reader</string>
 <string name="word_empty">Empty Word document</string>

@@ -11,6 +11,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -47,7 +50,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun AllFileReaderApp(
     fileNavigationViewModel: FileNavigationViewModel = hiltViewModel(),
-    storageAccessViewModel: StorageAccessViewModel = hiltViewModel()
+    storageAccessViewModel: StorageAccessViewModel = hiltViewModel(),
+    incomingDocumentViewModel: IncomingDocumentViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
@@ -56,6 +60,7 @@ fun AllFileReaderApp(
     val coroutineScope = rememberCoroutineScope()
     val unavailableMessage = stringResource(R.string.reader_unavailable)
     val accessState by storageAccessViewModel.state.collectAsStateWithLifecycle()
+    val incomingState by incomingDocumentViewModel.state.collectAsStateWithLifecycle()
     val requestAccess = rememberStorageAccessRequest(storageAccessViewModel::recheck)
     LifecycleResumeEffect(Unit) {
         storageAccessViewModel.recheck()
@@ -92,6 +97,16 @@ fun AllFileReaderApp(
         currentDestination?.hierarchy?.any {
             it.hasRoute(destination.routeClass)
         } == true
+    }
+    LaunchedEffect(incomingState, accessState) {
+        if (incomingState is IncomingUiState.PendingPermission) {
+            incomingDocumentViewModel.processPending(accessState == StorageAccessState.Granted)
+            return@LaunchedEffect
+        }
+        val open = incomingState as? IncomingUiState.Open ?: return@LaunchedEffect
+        if (accessState != StorageAccessState.Granted) return@LaunchedEffect
+        onDocumentClick(open.document)
+        incomingDocumentViewModel.consumed()
     }
 
     Scaffold(
@@ -199,5 +214,19 @@ fun AllFileReaderApp(
                 )
             }
         }
+    }
+    val failure = incomingState as? IncomingUiState.Failure
+    if (failure != null && accessState == StorageAccessState.Granted) {
+        val (title, message) = when (failure.reason) {
+            IncomingError.Unsupported -> R.string.incoming_unsupported_title to R.string.incoming_unsupported_message
+            IncomingError.FormatMismatch -> R.string.incoming_mismatch_title to R.string.incoming_mismatch_message
+            IncomingError.AccessDenied -> R.string.incoming_access_title to R.string.incoming_access_message
+            IncomingError.MissingUri -> R.string.incoming_missing_title to R.string.incoming_missing_message
+        }
+        AlertDialog(
+            onDismissRequest = incomingDocumentViewModel::dismissError,
+            title = { Text(stringResource(title)) }, message = { Text(stringResource(message)) },
+            confirmButton = { TextButton(onClick = incomingDocumentViewModel::dismissError) { Text(stringResource(R.string.back)) } }
+        )
     }
 }

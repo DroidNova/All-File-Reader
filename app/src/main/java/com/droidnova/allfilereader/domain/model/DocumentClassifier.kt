@@ -3,6 +3,23 @@ package com.droidnova.allfilereader.domain.model
 import java.util.Locale
 
 object DocumentClassifier {
+    /** Formats intentionally exposed to external ACTION_VIEW callers. */
+    val incomingMimeTypes: Set<String> = setOf(
+        "application/pdf", "text/plain",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel", "application/vnd.ms-excel.sheet.macroenabled.12",
+        "application/vnd.ms-excel.sheet.binary.macroenabled.12",
+        "application/vnd.oasis.opendocument.spreadsheet", "text/csv",
+        "text/tab-separated-values",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-powerpoint"
+    )
+
+    val incomingExtensions: Set<String> = setOf(
+        "pdf", "txt", "docx", "xlsx", "xls", "xlsm", "xlsb", "ods", "csv", "tsv", "pptx", "ppt"
+    )
+
     fun extensionOf(displayName: String): String? = displayName
         .substringAfterLast('.', missingDelimiterValue = "")
         .trim()
