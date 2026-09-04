@@ -225,7 +225,8 @@ fun AllFileReaderApp(
         }
         AlertDialog(
             onDismissRequest = incomingDocumentViewModel::dismissError,
-            title = { Text(stringResource(title)) }, message = { Text(stringResource(message)) },
+            title = { Text(stringResource(title)) },
+            text = { Text(stringResource(message)) },
             confirmButton = { TextButton(onClick = incomingDocumentViewModel::dismissError) { Text(stringResource(R.string.back)) } }
         )
     }
