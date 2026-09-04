@@ -7,9 +7,12 @@ import androidx.paging.cachedIn
 import com.droidnova.allfilereader.data.permission.MediaPermissionManager
 import com.droidnova.allfilereader.domain.model.SafEntry
 import com.droidnova.allfilereader.domain.repository.FolderRepository
+import com.droidnova.allfilereader.domain.repository.FavoritesRepository
+import com.droidnova.allfilereader.domain.model.DocumentFile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 
 data class FoldersUiState(val currentFolderName: String? = null, val isShowingRoots: Boolean = true, val hasAccess: Boolean)
 private data class DirectoryLocation(val root: SafEntry? = null, val path: List<SafEntry> = emptyList(), val generation: Int = 0)
@@ -17,7 +20,8 @@ private data class DirectoryLocation(val root: SafEntry? = null, val path: List<
 @HiltViewModel
 class FoldersViewModel @Inject constructor(
     private val repository: FolderRepository,
-    private val access: MediaPermissionManager
+    private val access: MediaPermissionManager,
+    private val favoritesRepository: FavoritesRepository
 ) : ViewModel() {
     private val location = MutableStateFlow(DirectoryLocation())
     private val granted = MutableStateFlow(access.isGranted())
@@ -27,6 +31,20 @@ class FoldersViewModel @Inject constructor(
     val entries: Flow<PagingData<SafEntry>> = location.flatMapLatest { place ->
         repository.pagedEntries(place.root?.uri, place.path.lastOrNull()?.uri)
     }.cachedIn(viewModelScope)
+    val favoriteIds = favoritesRepository.favoriteIds
+    private val _favoriteUpdates = MutableStateFlow<Set<String>>(emptySet())
+    val favoriteUpdates: StateFlow<Set<String>> = _favoriteUpdates.asStateFlow()
+    private val _favoriteErrors = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val favoriteErrors = _favoriteErrors.asSharedFlow()
+
+    fun toggleFavorite(document: DocumentFile) {
+        if (document.id in _favoriteUpdates.value) return
+        _favoriteUpdates.value += document.id
+        viewModelScope.launch {
+            if (favoritesRepository.toggle(document.id).isFailure) _favoriteErrors.tryEmit(Unit)
+            _favoriteUpdates.value -= document.id
+        }
+    }
 
     fun onResume() {
         val now = access.isGranted()

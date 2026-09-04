@@ -52,7 +52,7 @@ internal fun isHomeCategoryVisible(special: String?): Boolean =
     items(cards,key={it.label}){card->
      val countContent = when {
       card.special=="directories" -> CategoryCountContent.Text(stringResource(R.string.browse))
-      card.special=="favorites" -> CategoryCountContent.Text("0")
+      card.special=="favorites" -> CategoryCountContent.Text(state.availableFavoriteCount.toString())
       state.counts is HomeCountState.Loading -> CategoryCountContent.Loading
       else -> CategoryCountContent.Text(state.count(card.model)?.toString() ?: stringResource(R.string.count_unavailable))
      }
