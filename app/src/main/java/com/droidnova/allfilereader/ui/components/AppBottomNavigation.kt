@@ -1,7 +1,6 @@
 package com.droidnova.allfilereader.ui.components
 
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
@@ -15,7 +14,7 @@ fun AppBottomNavigation(
     isSelected: (AppDestination) -> Boolean,
     onDestinationSelected: (AppDestination) -> Unit
 ) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.background) {
+    NavigationBar {
         destinations.forEach { destination ->
             val label = stringResource(destination.labelResId)
             NavigationBarItem(

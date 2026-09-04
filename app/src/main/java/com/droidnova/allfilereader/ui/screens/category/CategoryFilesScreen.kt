@@ -24,15 +24,9 @@ fun CategoryFilesScreen(onBack: () -> Unit, onDocumentClick: (DocumentFile) -> U
     val documents = viewModel.documents.collectAsLazyPagingItems()
     LifecycleResumeEffect(Unit) { viewModel.onResume(); onPauseOrDispose {} }
     val request = rememberStorageAccessRequest(viewModel::onResume)
-    Scaffold(topBar = { TopAppBar(
-        title = { Text(stringResource(state.category.title())) },
-        navigationIcon = {
-            IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, stringResource(R.string.back)) }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = MaterialTheme.colorScheme.background
-        )
-    ) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(state.category.title())) }, navigationIcon = {
+        IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, stringResource(R.string.back)) }
+    }) }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             PagedDocumentList(documents, state.hasAccess, state.permissionPromptDismissed,
                 state.category.empty(), R.string.category_empty_supporting_text,

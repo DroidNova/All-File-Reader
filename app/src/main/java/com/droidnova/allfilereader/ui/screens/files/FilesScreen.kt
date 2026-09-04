@@ -22,17 +22,7 @@ fun FilesScreen(onDocumentClick: (DocumentFile) -> Unit, viewModel: FilesViewMod
     val documents = viewModel.documents.collectAsLazyPagingItems()
     LifecycleResumeEffect(Unit) { viewModel.onResume(); onPauseOrDispose {} }
     val request = rememberStorageAccessRequest(viewModel::onResume)
-    Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.recent)) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
-    ) { padding ->
+    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0), topBar = { TopAppBar(title = { Text(stringResource(R.string.recent)) }) }) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             PagedDocumentList(documents, state.hasAccess, state.permissionPromptDismissed,
                 R.string.no_recent_files, R.string.no_recent_files_supporting_text,
