@@ -11,6 +11,7 @@ import com.droidnova.allfilereader.domain.model.DocumentIds
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
 import com.droidnova.allfilereader.data.paging.LocalMetadataPagingConfig
 import com.droidnova.allfilereader.data.paging.SnapshotPagingSource
+import com.droidnova.allfilereader.data.permission.MediaPermissionManager
 import androidx.paging.Pager
 import androidx.paging.PagingData
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,7 +32,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.coroutines.coroutineContext
 
 class MediaStoreDocumentRepository @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val permissionManager: MediaPermissionManager
 ) : DocumentRepository {
     private val scanMutex = Mutex()
     private var cache: List<DocumentFile>? = null
@@ -57,8 +59,16 @@ class MediaStoreDocumentRepository @Inject constructor(
     override fun requestPagingRefresh() { pagingRefreshRequested.set(true) }
 
     override suspend fun getDocuments(forceRefresh: Boolean): List<DocumentFile> = scanMutex.withLock {
+        if (!permissionManager.isGranted()) {
+            clearSnapshots()
+            throw SecurityException("Storage access is required")
+        }
         if (!forceRefresh) cache?.let { return@withLock it }
         val result = withContext(Dispatchers.IO) { scan() }
+        if (!permissionManager.isGranted()) {
+            clearSnapshots()
+            throw SecurityException("Storage access was revoked")
+        }
         cache = result
         synchronized(knownDocuments) {
             knownDocuments.putAll(result.associateBy(DocumentFile::id))
@@ -68,10 +78,12 @@ class MediaStoreDocumentRepository @Inject constructor(
     }
 
     override fun rememberDocument(document: DocumentFile) {
+        if (!permissionManager.isGranted()) return
         synchronized(knownDocuments) { knownDocuments[document.id] = document }
     }
 
     override suspend fun resolveDocument(id: String): DocumentFile? {
+        if (!permissionManager.isGranted()) return null
         val known = synchronized(knownDocuments) { knownDocuments[id] }
             ?: getDocuments(forceRefresh = false).firstOrNull { it.id == id }
         return withContext(Dispatchers.IO) {
@@ -91,6 +103,7 @@ class MediaStoreDocumentRepository @Inject constructor(
         storageRoots().forEach(queue::add)
         while (queue.isNotEmpty()) {
             coroutineContext.ensureActive()
+            if (!permissionManager.isGranted()) throw SecurityException("Storage access was revoked")
             val directory = queue.removeFirst()
             val canonical = runCatching { directory.canonicalPath }.getOrNull() ?: continue
             if (!visited.add(canonical) || isRestricted(canonical)) continue
@@ -129,6 +142,13 @@ class MediaStoreDocumentRepository @Inject constructor(
     }
 
     private fun isRestricted(path: String): Boolean = path.contains("/Android/data") || path.contains("/Android/obb")
+
+    override fun clearSnapshots() {
+        cache = null
+        synchronized(knownDocuments) { knownDocuments.clear() }
+        _documents.value = emptyList()
+        pagingRefreshRequested.set(false)
+    }
 
     private companion object {
         val supported = setOf(DocumentCategory.Pdf, DocumentCategory.Word, DocumentCategory.Excel,

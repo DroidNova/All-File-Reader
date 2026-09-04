@@ -46,7 +46,14 @@ class HomeViewModel @Inject constructor(
 
     fun refresh() = load(true)
     fun dismissPermission() { _uiState.value = _uiState.value.copy(permissionDismissed = true) }
-    fun onResume() { if (access.isGranted() != _uiState.value.hasAccess) load(true) }
+    fun onResume() {
+        if (!access.isGranted()) {
+            loadJob?.cancel()
+            _uiState.value = HomeUiState(counts = HomeCountState.Unavailable, hasAccess = false)
+        } else {
+            load(true)
+        }
+    }
 
     private fun load(force: Boolean) {
         if (loadJob?.isActive == true) return
