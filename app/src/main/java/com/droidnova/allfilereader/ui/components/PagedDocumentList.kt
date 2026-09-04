@@ -3,6 +3,8 @@ package com.droidnova.allfilereader.ui.components
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material3.*
@@ -31,7 +33,8 @@ fun PagedDocumentList(
     onRefreshRequested: () -> Unit,
     onAllow: () -> Unit,
     onNotNow: () -> Unit,
-    onDocumentClick: (DocumentFile) -> Unit
+    onDocumentClick: (DocumentFile) -> Unit,
+    listState: LazyListState = rememberLazyListState()
 ) {
     val refreshing = documents.loadState.refresh is LoadState.Loading && documents.itemCount > 0
     PullToRefreshBox(
@@ -52,7 +55,7 @@ fun PagedDocumentList(
                 PagedMessage(R.string.files_error_title, R.string.files_error_supporting_text, documents::retry)
             documents.loadState.refresh is LoadState.NotLoading && documents.itemCount == 0 ->
                 PagedMessage(emptyTitle, emptyText)
-            else -> LazyColumn(Modifier.fillMaxSize()) {
+            else -> LazyColumn(Modifier.fillMaxSize(), state = listState) {
                 items(documents.itemCount, key = documents.itemKey(DocumentFile::id)) { index ->
                     documents[index]?.let { document ->
                         DocumentFileRow(document = document, onClick = { onDocumentClick(document) })
