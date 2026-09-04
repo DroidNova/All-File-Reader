@@ -12,6 +12,7 @@ import com.droidnova.allfilereader.domain.model.DocumentFile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 
 data class FoldersUiState(val currentFolderName: String? = null, val isShowingRoots: Boolean = true, val hasAccess: Boolean)
 private data class DirectoryLocation(val root: SafEntry? = null, val path: List<SafEntry> = emptyList(), val generation: Int = 0)
