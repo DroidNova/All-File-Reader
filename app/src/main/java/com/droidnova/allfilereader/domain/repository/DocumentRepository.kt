@@ -19,4 +19,7 @@ interface DocumentRepository {
 
     /** Marks the next Paging refresh as an explicit storage refresh. */
     fun requestPagingRefresh()
+
+    /** Drops process-memory metadata without modifying documents or persisted user data. */
+    fun clearSnapshots()
 }

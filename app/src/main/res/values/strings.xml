@@ -6,11 +6,19 @@
 <string name="no_recent_pdf_files">No recent PDF files</string><string name="no_recent_word_files">No recent Word files</string><string name="no_recent_excel_files">No recent Excel files</string><string name="no_recent_powerpoint_files">No recent PowerPoint files</string><string name="no_recent_text_files">No recent text files</string>
 <string name="no_files_found">No files found</string><string name="no_pdf_files">No PDF files found</string><string name="no_word_files">No Word files found</string><string name="no_excel_files">No Excel files found</string><string name="no_ppt_files">No PPT files found</string><string name="no_txt_files">No TXT files found</string><string name="category_empty_supporting_text">Supported documents in this category will appear here.</string>
 <string name="all_files_access">All files access</string><string name="all_files_access_explanation">All File Reader needs access to shared storage to find and organize documents across folders on your device.</string><string name="allow_access">Allow access</string><string name="not_now">Not now</string>
+<string name="storage_permission_title">Allow access to your documents</string>
+<string name="storage_permission_description">To find and open PDF, Word, Excel, PowerPoint, and text files stored on this device, All File Reader needs access to all files.</string>
+<string name="storage_permission_privacy">Your documents are processed on this device and are not uploaded.</string>
+<string name="storage_permission_settings_note">You can manage this permission anytime in Android Settings.</string>
 <string name="files_error_title">Couldn’t load files</string><string name="files_error_supporting_text">Check access and try again.</string><string name="try_again">Try again</string><string name="back">Back</string>
 <string name="files_append_error">Couldn’t load more files.</string>
 <string name="unknown_file_info">Unknown</string><string name="document_type_pdf">PDF</string><string name="document_type_word">Word</string><string name="document_type_excel">Excel</string><string name="document_type_powerpoint">PowerPoint</string><string name="document_type_text">Text</string><string name="document_type_folder">Folder</string><string name="document_type_other">Other</string><string name="file_metadata">%1$s · %2$s · %3$s</string>
 <string name="folder">Folder</string><string name="storage_root">Storage root</string><string name="folder_is_empty">This folder is empty</string><string name="folder_is_empty_supporting_text">No accessible items were found in this folder.</string><string name="folder_error_title">Couldn’t load folder</string><string name="directory_access_denied">This location is unavailable or access is restricted. Return or try again.</string>
-<string name="no_favorites_yet">No favorites yet</string><string name="no_favorites_supporting_text">Files you add to favorites will appear here.</string>
+<string name="no_favorites_yet">No favorites yet</string><string name="no_favorites_supporting_text">Tap the star next to a file to find it here.</string>
+<string name="add_to_favorites">Add to favorites</string><string name="remove_from_favorites">Remove from favorites</string>
+<string name="favorites_update_failed">Could not update favorites. Try again.</string>
+<string name="favorites_temporarily_unavailable">Favorite files unavailable</string>
+<string name="favorites_temporarily_unavailable_description">Saved favorites will reappear when their files are available again.</string>
 <string name="txt_reader">Text Reader</string>
 <string name="txt_loading">Loading text file</string>
 <string name="txt_empty">Empty text file</string>
