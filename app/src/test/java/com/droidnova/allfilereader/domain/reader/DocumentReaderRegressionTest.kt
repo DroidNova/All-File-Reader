@@ -19,10 +19,14 @@ class DocumentReaderRegressionTest {
             assertEquals(DocumentOpenResult.Internal(expected), DocumentReaderResolver.resolve(document))
         }
     }
-    @Test fun everySpreadsheetExtensionStillUsesInternalSpreadsheetRoute() {
-        listOf("xls","xlsx","xlsm","xlsb","csv","tsv","ods").forEach { extension ->
+    @Test fun onlyProductApprovedSpreadsheetExtensionsUseInternalSpreadsheetRoute() {
+        listOf("xls","xlsx","csv","tsv","ods").forEach { extension ->
             val document = DocumentFile("id", "file.$extension", "file:///test", null, extension, 1, 1, DocumentCategory.Excel, false)
             assertEquals(DocumentOpenResult.Internal(DocumentReaderDestination.Spreadsheet), DocumentReaderResolver.resolve(document))
+        }
+        listOf("xlsm","xlsb").forEach { extension ->
+            val document = DocumentFile("id", "file.$extension", "file:///test", null, extension, 1, 1, DocumentCategory.Excel, false)
+            assertEquals(DocumentOpenResult.Unsupported, DocumentReaderResolver.resolve(document))
         }
     }
     @Test fun legacyPptAndPptxKeepTheirDedicatedRoutes() {

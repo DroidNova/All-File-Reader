@@ -120,9 +120,10 @@ class MediaStoreDocumentRepository @Inject constructor(
                     continue
                 }
                 val extension = DocumentClassifier.extensionOf(file.name)
-                val category = DocumentClassifier.classify(null, extension)
+                val classification = DocumentClassifier.classifyMetadata(null, extension)
                 // Traversal continues through every directory, but non-document metadata is discarded.
-                if (!DocumentClassifier.isVisibleDocument(category)) continue
+                if (!DocumentClassifier.isVisibleDocument(classification)) continue
+                val category = classification.category ?: continue
                 val path = runCatching { file.canonicalPath }.getOrNull() ?: continue
                 found[path] = DocumentFile(
                     id = DocumentIds.fromStorageLocation(path), displayName = file.name, uri = file.toURI().toString(),

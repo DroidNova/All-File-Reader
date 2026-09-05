@@ -52,9 +52,7 @@ class SafFolderRepository @Inject constructor(
             }
             folder.listFiles().orEmpty().asSequence()
                 .filterNot { it.isHidden }
-                .filter { it.isDirectory || DocumentClassifier.classify(null, DocumentClassifier.extensionOf(it.name)).let { type ->
-                    type != com.droidnova.allfilereader.domain.model.DocumentCategory.Other
-                } }
+                .filter { it.isDirectory || DocumentClassifier.isVisibleDocument(DocumentClassifier.classify(it.name, null)) }
                 .map { it.toEntry() }
                 .sortedWith(compareByDescending<SafEntry> { it.isDirectory }
                     .thenBy(String.CASE_INSENSITIVE_ORDER) { it.displayName }

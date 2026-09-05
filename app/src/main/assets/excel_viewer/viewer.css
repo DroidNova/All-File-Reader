@@ -25,6 +25,10 @@ html, body {
   touch-action: pan-x pan-y pinch-zoom;
   -webkit-overflow-scrolling: touch;
 }
+#pager { flex: 0 0 auto; display: flex; gap: 6px; align-items: center; padding: 6px; overflow-x: auto; border-bottom: 1px solid #ddd; white-space: nowrap; }
+#pager[hidden] { display: none; }
+#pager button { min-height: 34px; }
+#rangeLabel { padding: 0 6px; }
 #surface { position: relative; flex: none; min-width: 100%; min-height: 100%; transform-origin: 0 0; }
 #notice { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center; background: #fff; }
 #tabs { flex: 0 0 42px; width: 100%; min-width: 0; display: flex; overflow-x: auto; background: #f3f4f5; border-top: 1px solid #ccc; }

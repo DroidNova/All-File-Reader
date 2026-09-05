@@ -7,6 +7,7 @@ import com.droidnova.allfilereader.BuildConfig
 import java.io.EOFException
 import java.io.File
 import java.io.FileNotFoundException
+import java.io.InputStream
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -17,7 +18,7 @@ import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.coroutineContext
 
 internal object SpreadsheetLimits {
-    const val MAX_INPUT_BYTES = 50L * 1024 * 1024
+    const val MAX_INPUT_BYTES = SpreadsheetBudgetPolicy.ABSOLUTE_MAX_WORKBOOK_BYTES
     const val MAX_ZIP_ENTRIES = 8_192
     const val MAX_ENTRY_BYTES = 128L * 1024 * 1024
     const val MAX_INSPECTED_BYTES = 512L * 1024 * 1024
@@ -57,7 +58,8 @@ data class SpreadsheetSession(
     val expectedFormat: SpreadsheetExpectedFormat,
     val container: SpreadsheetContainer,
     val mediaType: String,
-    val biffVersion: BiffVersion? = null
+    val biffVersion: BiffVersion? = null,
+    val actualBytes: Long = file.length()
 )
 
 /** A single format contract, derived before bytes are assigned to a parser. */
@@ -91,27 +93,19 @@ internal class SpreadsheetPreflight(private val resolver: ContentResolver?, priv
         uri: Uri,
         declaredMime: String?,
         declaredExtension: String?,
-        declaredSize: Long?
+        declaredSize: Long?,
+        hardByteLimit: Long = SpreadsheetBudgetPolicy.ABSOLUTE_MAX_WORKBOOK_BYTES
     ): SpreadsheetSession {
         val expected = SpreadsheetFormatResolver.resolve(declaredExtension, declaredMime)
         trace("stage=FORMAT_CONTRACT expected=$expected")
-        if (declaredSize != null && declaredSize > SpreadsheetLimits.MAX_INPUT_BYTES) reject(PreflightReason.INPUT_SIZE_LIMIT)
+        if (declaredSize != null && declaredSize >= 0 && declaredSize > hardByteLimit) reject(PreflightReason.INPUT_SIZE_LIMIT)
         val target = File.createTempFile("spreadsheet_session_", ".bin", cacheDir)
         val started = System.nanoTime()
         try {
-            resolver?.openInputStream(uri)?.use { input -> target.outputStream().buffered().use { output ->
-                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                var total = 0L
-                while (true) {
-                    coroutineContext.ensureActive()
-                    val count = input.read(buffer)
-                    if (count < 0) break
-                    total += count
-                    if (total > SpreadsheetLimits.MAX_INPUT_BYTES) reject(PreflightReason.INPUT_SIZE_LIMIT)
-                    output.write(buffer, 0, count)
-                }
-            }} ?: throw FileNotFoundException()
-            val session = validateSessionFile(target, expected)
+            resolver?.openInputStream(uri)?.use { input -> copyWorkbookStream(input, target, hardByteLimit) }
+                ?: throw FileNotFoundException()
+            if (target.length() == 0L) reject(PreflightReason.CORRUPTED_CONTAINER)
+            val session = validateSessionFile(target, expected).copy(actualBytes = target.length())
             trace("stage=PREFLIGHT_COMPLETE result=SUCCESS expected=$expected container=${session.container} biff=${session.biffVersion ?: "NONE"} durationMs=${elapsedMs(started)}")
             return session
         } catch (error: Exception) {
@@ -144,6 +138,7 @@ internal class SpreadsheetPreflight(private val resolver: ContentResolver?, priv
                 SpreadsheetSession(file, expected, SpreadsheetContainer.XLS_CFB, "application/vnd.ms-excel", result.biffVersion)
             }
             SpreadsheetExpectedFormat.XLSX, SpreadsheetExpectedFormat.XLSM, SpreadsheetExpectedFormat.XLSB -> {
+                if (signature == SpreadsheetSignature.CFB) CfbXlsInspector(file).inspect()
                 if (signature != SpreadsheetSignature.ZIP_OPC) reject(PreflightReason.FORMAT_MISMATCH)
                 val zipKind = inspectZip(file)
                 if (zipKind == SpreadsheetContainer.ODS_ZIP) reject(PreflightReason.FORMAT_MISMATCH)
@@ -201,21 +196,37 @@ internal class SpreadsheetPreflight(private val resolver: ContentResolver?, priv
                     if (name.equals("EncryptedPackage", true) || name.equals("EncryptionInfo", true)) reject(PreflightReason.ENCRYPTED)
                     if (entry.size >= 0 && entry.size > SpreadsheetLimits.MAX_ENTRY_BYTES) reject(PreflightReason.ENTRY_SIZE_LIMIT)
                     if (entry.size > SpreadsheetLimits.COMPRESSION_CHECK_BYTES && entry.compressedSize > 0 && entry.size / entry.compressedSize > SpreadsheetLimits.MAX_COMPRESSION_RATIO) reject(PreflightReason.SUSPICIOUS_COMPRESSION)
-                    zip.getInputStream(entry).use { stream ->
+                    val inspectContent = name == "[Content_Types].xml" ||
+                        name == "_rels/.rels" || name == "xl/workbook.xml" ||
+                        name == "xl/_rels/workbook.xml.rels"
+                    if (inspectContent) zip.getInputStream(entry).use { stream ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                         var actual = 0L
                         while (true) {
                             val read = stream.read(buffer)
                             if (read < 0) break
-                            actual += read
-                            inspected += read
+                            actual = Math.addExact(actual, read.toLong())
+                            inspected = Math.addExact(inspected, read.toLong())
                             if (actual > SpreadsheetLimits.MAX_ENTRY_BYTES) reject(PreflightReason.ENTRY_SIZE_LIMIT)
                             if (inspected > SpreadsheetLimits.MAX_INSPECTED_BYTES) reject(PreflightReason.TOTAL_UNCOMPRESSED_LIMIT)
                         }
                     }
                 }
                 trace("stage=ZIP_DIRECTORY entries=${zip.size()}")
-                return if (names.contains("META-INF/manifest.xml")) SpreadsheetContainer.ODS_ZIP else SpreadsheetContainer.OPC_ZIP
+                if (names.contains("META-INF/manifest.xml")) return SpreadsheetContainer.ODS_ZIP
+                val workbook = names.firstOrNull { it.endsWith("/workbook.xml") || it == "workbook.xml" }
+                val workbookDirectory = workbook?.substringBeforeLast('/', "")
+                val relationship = workbook?.substringAfterLast('/')?.let { fileName ->
+                    listOf("${workbookDirectory}/_rels/$fileName.rels", "_rels/$fileName.rels")
+                        .map { it.trimStart('/') }.any(names::contains)
+                } == true
+                val worksheet = workbookDirectory != null && names.any {
+                    it.startsWith(workbookDirectory.trimEnd('/') + "/worksheets/")
+                }
+                if ("[Content_Types].xml" !in names || workbook == null || !relationship || !worksheet) {
+                    reject(PreflightReason.CORRUPTED_CONTAINER)
+                }
+                return SpreadsheetContainer.OPC_ZIP
             }
         } catch (error: SpreadsheetPreflightException) {
             throw error
@@ -223,6 +234,8 @@ internal class SpreadsheetPreflight(private val resolver: ContentResolver?, priv
             reject(PreflightReason.CORRUPTED_CONTAINER)
         } catch (_: java.io.IOException) {
             reject(PreflightReason.CORRUPTED_CONTAINER)
+        } catch (_: ArithmeticException) {
+            reject(PreflightReason.TOTAL_UNCOMPRESSED_LIMIT)
         }
     }
 
@@ -254,6 +267,33 @@ internal class SpreadsheetPreflight(private val resolver: ContentResolver?, priv
     private fun safeCode(error: Exception) = (error as? SpreadsheetPreflightException)?.reason?.name ?: "PROCESSING_FAILURE"
     private fun elapsedMs(started: Long) = (System.nanoTime() - started) / 1_000_000
     private fun trace(message: String) { if (BuildConfig.DEBUG) runCatching { Log.i("SpreadsheetTrace", message) } }
+}
+
+/** Testable streaming primitive; it never retains the complete source and deletes every partial file. */
+internal suspend fun copyWorkbookStream(input: InputStream, destination: File, hardByteLimit: Long): Long {
+    var success = false
+    try {
+        val copied = input.buffered().use { source -> destination.outputStream().buffered().use { output ->
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var total = 0L
+            while (true) {
+                coroutineContext.ensureActive()
+                val count = source.read(buffer)
+                if (count < 0) break
+                total = try { Math.addExact(total, count.toLong()) } catch (_: ArithmeticException) {
+                    throw SpreadsheetPreflightException.TooLarge()
+                }
+                if (total > hardByteLimit) throw SpreadsheetPreflightException.TooLarge()
+                output.write(buffer, 0, count)
+            }
+            output.flush()
+            total
+        }}
+        success = true
+        return copied
+    } finally {
+        if (!success) destination.delete()
+    }
 }
 
 internal data class CfbXlsResult(val workbookName: String, val biffVersion: BiffVersion)

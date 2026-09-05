@@ -3,6 +3,7 @@ package com.droidnova.allfilereader.data.text
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.nio.charset.StandardCharsets
+import java.nio.charset.Charset
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -25,6 +26,13 @@ class TextDocumentStoreTest {
     @Test fun utf8BomIsRemoved() { prepared(byteArrayOf(0xEF.toByte(),0xBB.toByte(),0xBF.toByte()) + "hello".toByteArray()).use { assertEquals("hello", it.readChunk(0)) } }
     @Test fun utf16LittleEndianBom() { val body="नमस्ते 😀".toByteArray(StandardCharsets.UTF_16LE); prepared(byteArrayOf(0xFF.toByte(),0xFE.toByte())+body).use { assertEquals("नमस्ते 😀",it.readChunk(0)) } }
     @Test fun utf16BigEndianBom() { val body="hello 😀".toByteArray(StandardCharsets.UTF_16BE); prepared(byteArrayOf(0xFE.toByte(),0xFF.toByte())+body).use { assertEquals("hello 😀",it.readChunk(0)) } }
+    @Test fun utf32BomIsCheckedBeforeUtf16() {
+        val charset = Charset.forName("UTF-32LE")
+        val body = "hello 😀".toByteArray(charset)
+        prepared(byteArrayOf(0xFF.toByte(), 0xFE.toByte(), 0, 0) + body).use {
+            assertEquals("hello 😀", it.readChunk(0))
+        }
+    }
     @Test fun multibyteAcrossInputBuffers() { val text="a".repeat(TxtLimits.READ_BUFFER_BYTES-1)+"😀न"; prepared(text.toByteArray()).use { store -> assertEquals(text,store.chunks.indices.joinToString("") { store.readChunk(it) }) } }
     @Test fun searchWithinChunkIsCaseInsensitiveAndUnicodeSafe() = runBlocking { prepared("Alpha alpha नमस्ते 😀".toByteArray()).use { store -> assertEquals(2,store.search("ALPHA").matches.size); assertEquals(1,store.search("नमस्ते").matches.size); assertEquals(1,store.search("😀").matches.size) } }
     @Test fun searchCrossesChunkBoundary() = runBlocking { val text="a".repeat(TxtLimits.CHUNK_CHARACTERS-2)+"needle"; prepared(text.toByteArray()).use { assertEquals(TxtLimits.CHUNK_CHARACTERS-2L,it.search("needle").matches.single().characterOffset) } }
@@ -33,6 +41,37 @@ class TextDocumentStoreTest {
     @Test fun oldSearchCanBeCancelled() = runBlocking { prepared("x".repeat(500_000).toByteArray()).use { store -> val job=launch { store.search("none") }; job.cancelAndJoin(); assertTrue(job.isCancelled) } }
     @Test fun configuredFileLimitIsEnforced() = runBlocking { val file=File.createTempFile("txt_test_", ".cache"); try { IncrementalTextDecoder.decode(ByteArrayInputStream("12345".toByteArray()),file,4); fail("Expected limit") } catch (_: TextFileTooLargeException) {} finally { file.delete() } }
     @Test fun binaryNulIsRejected() = runBlocking { val file=File.createTempFile("txt_test_", ".cache"); try { IncrementalTextDecoder.decode(ByteArrayInputStream(byteArrayOf(1,0,2)),file); fail("Expected binary rejection") } catch (_: BinaryTextException) {} finally { file.delete() } }
+    @Test fun archiveSignatureIsRejected() = runBlocking {
+        val file = File.createTempFile("txt_test_", ".cache")
+        try {
+            IncrementalTextDecoder.decode(ByteArrayInputStream(byteArrayOf(0x50, 0x4b, 3, 4, 1, 2)), file)
+            fail("Expected binary rejection")
+        } catch (_: BinaryTextException) {
+            // Expected.
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test fun budgetSelectsLowRamAndNormalProfiles() {
+        val low = TextReaderBudgetPolicy.forDevice(TextReaderDeviceProfile(128, true))
+        val normal = TextReaderBudgetPolicy.forDevice(TextReaderDeviceProfile(256, false))
+        assertTrue(low.smallFileByteLimit < normal.smallFileByteLimit)
+        assertTrue(low.maxCachedCharacters < normal.maxCachedCharacters)
+        assertTrue(normal.maxStoredSearchMatches <= 1_000)
+    }
+
+    @Test fun staleCleanupOnlyRemovesOwnedInactiveSessions() {
+        val root = createTempDir(prefix = "txt_sessions_")
+        val stale = File(root, "session_old.utf8").apply { writeText("old"); setLastModified(1L) }
+        val active = File(root, "session_active.utf8").apply { writeText("active"); setLastModified(1L) }
+        val unrelated = File(root, "other.cache").apply { writeText("keep"); setLastModified(1L) }
+        cleanupStaleTextSessions(root, setOf(active), nowMillis = 100_000L, staleAfterMillis = 10L)
+        assertFalse(stale.exists())
+        assertTrue(active.exists())
+        assertTrue(unrelated.exists())
+        root.deleteRecursively()
+    }
 
     @Test fun initialLoadingAlwaysTransitionsToAContentTerminalState() = runBlocking {
         prepared("small file".toByteArray()).use {
@@ -41,6 +80,7 @@ class TextDocumentStoreTest {
         }
         prepared(byteArrayOf()).use { assertTrue(it.chunks.isEmpty()) }
         assertSame(TxtReaderContent.UnsupportedEncoding, failureContent(UnsupportedTextEncodingException()))
+        assertSame(TxtReaderContent.MalformedText, failureContent(java.nio.charset.MalformedInputException(1)))
         assertFalse(failureContent(java.io.IOException()) is TxtReaderContent.Loading)
         assertSame(TxtReaderContent.NotFound, failureContent(java.io.FileNotFoundException()))
         assertSame(TxtReaderContent.AccessDenied, failureContent(SecurityException()))

@@ -36,6 +36,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.droidnova.allfilereader.R
 import com.droidnova.allfilereader.data.text.TextChunkIndex
+import com.droidnova.allfilereader.data.text.TxtLimits
 import com.droidnova.allfilereader.ui.components.rememberStorageAccessRequest
 import kotlinx.coroutines.launch
 
@@ -78,8 +79,10 @@ fun TxtReaderScreen(onBack: () -> Unit, viewModel: TxtReaderViewModel = hiltView
             TxtReaderContent.NotFound -> TxtMessage(R.string.txt_not_found, R.string.txt_not_found_message, padding, onBack, viewModel::retry)
             TxtReaderContent.AccessDenied -> TxtMessage(R.string.txt_access_removed, R.string.txt_access_removed_message, padding, onBack, requestAccess, R.string.allow_access)
             TxtReaderContent.UnsupportedEncoding -> TxtMessage(R.string.txt_cannot_open, R.string.txt_encoding_unsupported, padding, onBack)
+            TxtReaderContent.MalformedText -> TxtMessage(R.string.txt_cannot_open, R.string.txt_malformed_text, padding, onBack, viewModel::retry)
             TxtReaderContent.Binary -> TxtMessage(R.string.txt_cannot_open, R.string.txt_binary_unsupported, padding, onBack)
             TxtReaderContent.TooLarge -> TxtMessage(R.string.txt_cannot_open, R.string.txt_too_large, padding, onBack)
+            TxtReaderContent.InsufficientStorage -> TxtMessage(R.string.txt_cannot_open, R.string.txt_insufficient_storage, padding, onBack, viewModel::retry)
             TxtReaderContent.ReadError -> TxtMessage(R.string.txt_cannot_open, R.string.txt_read_error, padding, onBack, viewModel::retry)
         }
     }
@@ -108,23 +111,57 @@ fun TxtReaderScreen(onBack: () -> Unit, viewModel: TxtReaderViewModel = hiltView
                 if (value == null) value = viewModel.chunk(index)
             }
             val value = text
-            if (value != null) Text(highlight(value, chunks[index], state), fontSize = state.fontSize.sp, lineHeight = (state.fontSize + 8).sp, softWrap = state.wordWrap,
-                modifier = if (state.wordWrap) Modifier.fillMaxWidth() else Modifier.horizontalScroll(horizontal).widthIn(min = 1.dp))
+            if (value != null) {
+                // A hostile file may contain one multi-million-character logical line. Each
+                // independent layout is capped while concatenating the segments remains exact.
+                Column {
+                    visualSegments(value, TxtLimits.MAX_VISUAL_SEGMENT_CHARACTERS).forEach { segment ->
+                        Text(
+                            highlight(segment.text, chunks[index], segment.start, state),
+                            fontSize = state.fontSize.sp,
+                            lineHeight = (state.fontSize + 8).sp,
+                            softWrap = state.wordWrap,
+                            modifier = if (state.wordWrap) Modifier.fillMaxWidth()
+                            else Modifier.horizontalScroll(horizontal).widthIn(min = 1.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-@Composable private fun highlight(text: String, chunk: TextChunkIndex, state: TxtReaderUiState): AnnotatedString {
-    if (!state.search.active || state.search.query.isEmpty()) return AnnotatedString(text)
+internal data class VisualTextSegment(val start: Int, val text: String)
+
+internal fun visualSegments(text: String, maximumCharacters: Int): List<VisualTextSegment> {
+    require(maximumCharacters > 1)
+    if (text.isEmpty()) return listOf(VisualTextSegment(0, ""))
+    val result = ArrayList<VisualTextSegment>((text.length / maximumCharacters) + 1)
+    var start = 0
+    while (start < text.length) {
+        var end = minOf(text.length, start + maximumCharacters)
+        if (end < text.length && Character.isHighSurrogate(text[end - 1])) end--
+        result += VisualTextSegment(start, text.substring(start, end))
+        start = end
+    }
+    return result
+}
+
+@Composable private fun highlight(text: String, chunk: TextChunkIndex, segmentStart: Int, state: TxtReaderUiState): AnnotatedString {
+    val query = state.search.effectiveQuery
+    if (!state.search.active || query.isEmpty()) return AnnotatedString(text)
     val normal = MaterialTheme.colorScheme.tertiaryContainer; val current = MaterialTheme.colorScheme.primaryContainer
-    val chunkEnd = chunk.characterOffset + chunk.characterLength
-    val storeMatches = state.search.matches.withIndex().filter { it.value.characterOffset < chunkEnd && it.value.characterOffset + state.search.query.length > chunk.characterOffset }
+    val segmentOffset = chunk.characterOffset + segmentStart
+    val segmentEnd = segmentOffset + text.length
+    val storeMatches = state.search.matches.withIndex().filter {
+        it.value.characterOffset < segmentEnd && it.value.characterOffset + query.length > segmentOffset
+    }
     if (storeMatches.isEmpty()) return AnnotatedString(text)
     return buildAnnotatedString {
         append(text)
         storeMatches.forEach { indexed ->
-            val start = (indexed.value.characterOffset - chunk.characterOffset).toInt().coerceIn(0, text.length)
-            val end = (indexed.value.characterOffset + state.search.query.length - chunk.characterOffset).toInt().coerceIn(0, text.length)
+            val start = (indexed.value.characterOffset - segmentOffset).toInt().coerceIn(0, text.length)
+            val end = (indexed.value.characterOffset + query.length - segmentOffset).toInt().coerceIn(0, text.length)
             if (start < end) addStyle(SpanStyle(background = if (indexed.index == state.search.selected) current else normal), start, end)
         }
     }

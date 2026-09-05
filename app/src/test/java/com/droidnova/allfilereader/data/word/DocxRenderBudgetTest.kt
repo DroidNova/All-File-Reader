@@ -1,0 +1,8 @@
+package com.droidnova.allfilereader.data.word
+import org.junit.Assert.*
+import org.junit.Test
+class DocxRenderBudgetTest{
+ @Test fun profilesScaleAndRespectExistingHardCeiling(){val low=DocxBudgetPolicy.forProfile(DocxDeviceProfile(128,128,true));val normal=DocxBudgetPolicy.forProfile(DocxDeviceProfile(256,512,false));val high=DocxBudgetPolicy.forProfile(DocxDeviceProfile(512,512,false));assertEquals("low",low.profileName);assertEquals("normal",normal.profileName);assertEquals("high",high.profileName);assertTrue(low.maxCompressedBytes<normal.maxCompressedBytes);assertEquals(DocxBudgetPolicy.ABSOLUTE_MAX_COMPRESSED_BYTES,high.maxCompressedBytes);assertTrue(low.maxSearchHighlightCount<high.maxSearchHighlightCount)}
+ @Test fun invalidMetadataFallsBackAndBoundariesAreExact(){val b=DocxBudgetPolicy.forProfile(DocxDeviceProfile(-1,0,false));assertEquals("normal",b.profileName);assertTrue(b.acceptsCompressedSize(b.maxCompressedBytes));assertFalse(b.acceptsCompressedSize(b.maxCompressedBytes+1));assertFalse(b.acceptsCompressedSize(0));assertFalse(b.acceptsCompressedSize(Long.MAX_VALUE))}
+ @Test fun staleCleanupIsContainedAndPreservesActiveFiles(){val root=createTempDir(prefix="docx_sessions_");val outside=java.io.File.createTempFile("outside_",".docx");val stale=java.io.File(root,"stale.docx").apply{writeText("x");setLastModified(1)};val active=java.io.File(root,"active.docx").apply{writeText("x");setLastModified(1)};try{assertEquals(1,DocxSessionFiles.cleanStale(root,DocxSessionFiles.STALE_AFTER_MS+2,active));assertFalse(stale.exists());assertTrue(active.exists());assertFalse(DocxSessionFiles.deleteOwned(outside,root));assertTrue(outside.exists())}finally{root.deleteRecursively();outside.delete()}}
+}

@@ -7,9 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.core.content.FileProvider
+import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import java.io.File
 import java.io.FileNotFoundException
-import java.util.Locale
 
 enum class ExternalOpenResult { Launched, NoCompatibleApp, AccessFailure, PreparationFailure, TooLarge }
 
@@ -35,6 +35,9 @@ object UnsupportedFileExternalOpener {
         val target=File(dir,"external_${System.nanoTime()}.${source.extension.take(16)}"); source.inputStream().use{input->target.outputStream().use{out->val buffer=ByteArray(32*1024);var total=0L;while(true){val n=input.read(buffer);if(n<0)break;total+=n;if(total>MAX_SHARE_BYTES)throw TooLargeException();out.write(buffer,0,n)}}}
         return FileProvider.getUriForFile(context,"${context.packageName}.legacy-ppt-files",target)
     }
-    private fun safeMime(mime:String?,extension:String?):String = mime?.takeIf{it.contains('/')&&!it.equals("application/octet-stream",true)} ?: android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension?.lowercase(Locale.ROOT)) ?: "application/octet-stream"
+    private fun safeMime(mime:String?,extension:String?):String =
+        DocumentClassifier.findByExtension(extension)?.mimeTypes?.firstOrNull()
+            ?: DocumentClassifier.findByMimeType(mime)?.mimeTypes?.firstOrNull()
+            ?: "application/octet-stream"
     private class TooLargeException:Exception()
 }

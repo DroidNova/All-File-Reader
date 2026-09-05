@@ -29,6 +29,8 @@
 <string name="txt_access_removed_message">This text file is no longer accessible. Restore storage access and try again.</string>
 <string name="txt_cannot_open">Text file can’t be opened</string>
 <string name="txt_encoding_unsupported">This text encoding is not supported.</string>
+    <string name="txt_malformed_text">Some text in this file could not be decoded safely.</string>
+    <string name="txt_insufficient_storage">There isn’t enough storage available to open this text file.</string>
 <string name="txt_binary_unsupported">This file contains binary content and cannot be displayed as text.</string>
 <string name="txt_too_large">This text file is too large to display safely.</string>
 <string name="txt_read_error">The text file couldn’t be read. Check access and try again.</string>
@@ -62,6 +64,11 @@
 <string name="word_empty_message">This Word document has no readable content.</string>
 <string name="word_unsupported">Word format not supported</string>
 <string name="word_legacy_doc_message">The older .doc format is not supported yet. Please use a .docx file.</string>
+<string name="word_too_large_message">This document is too large to open safely on this device.</string>
+<string name="word_too_complex_message">This document is too complex to display safely on this device.</string>
+<string name="word_incomplete_message">This document is damaged or incomplete.</string>
+<string name="word_stalled_message">The document is taking too long to respond.</string>
+<string name="word_render_failure_message">The document could not be displayed.</string>
 <string name="word_encrypted_message">This encrypted or unsupported Word document can’t be opened.</string>
 <string name="word_cannot_open">Word document can’t be opened</string>
 <string name="word_corrupted_message">This Word document is damaged or is not a valid DOCX file.</string>
@@ -87,4 +94,7 @@
 <string name="pdf_access_removed_message">This PDF is no longer accessible. Restore storage access and try again.</string>
 <string name="pdf_unsupported">PDF can’t be opened</string>
 <string name="pdf_unsupported_message">This PDF may be damaged, password protected, or unsupported.</string>
+<string name="pdf_invalid_message">This is not a valid PDF document.</string>
+<string name="pdf_storage_message">There isn’t enough storage available to open this PDF.</string>
+<string name="pdf_viewer_failure_message">The PDF could not be displayed.</string>
 </resources>
