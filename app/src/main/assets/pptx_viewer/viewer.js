@@ -1,5 +1,5 @@
 import { PptxViewer, RECOMMENDED_ZIP_LIMITS } from "./aiden0z-pptx-renderer.browser.es.js";
-import { chooseMostVisible, wrappedIndex } from "./viewer-state.js";
+import { boundedSearchResults, chooseMostVisible, normalizeSearchLimit, wrappedIndex } from "./viewer-state.js";
 
 const scrollHost = document.getElementById("scrollHost");
 const slidesHost = document.getElementById("slides");
@@ -12,10 +12,13 @@ let searchGeneration = 0;
 let activeHighlight = null;
 const mountedSlides = new Map();
 const visibleRatios = new Map();
-let matches = [];
+let retainedMatches = [];
+let hasMoreMatches = false;
+const searchLimit = normalizeSearchLimit(new URLSearchParams(location.search).get("searchLimit"));
 const state = {
   status: "loading", stage: "viewer_loaded", progress: 0, slide: 1, slides: 0,
-  query: "", searching: false, matchCount: 0, activeMatchIndex: -1,
+  query: "", searching: false, matchCount: 0, hasMoreMatches: false,
+  activeMatchIndex: -1, searchGeneration: 0,
   searchErrorCode: "",
 };
 const snapshot = () => ({ ...state });
@@ -80,15 +83,19 @@ function clearHighlight() {
   activeHighlight = null;
   viewer?.clearSearchHighlights();
 }
-function resetSearch(query = "") {
+function resetSearch(query = "", reason = "reset") {
   searchGeneration++;
   clearHighlight();
-  matches = [];
+  retainedMatches = [];
+  hasMoreMatches = false;
   state.query = query;
   state.searching = false;
   state.matchCount = 0;
+  state.hasMoreMatches = false;
   state.activeMatchIndex = -1;
+  state.searchGeneration = searchGeneration;
   state.searchErrorCode = "";
+  console.debug(`PPTX search generation=${searchGeneration} cleanup=${reason}`);
 }
 function waitForSlide(index, generation) {
   if (viewer?.isSlideMounted(index)) return Promise.resolve(true);
@@ -102,7 +109,7 @@ function waitForSlide(index, generation) {
 }
 async function navigateToMatch(index, generation) {
   try {
-    const match = matches[index];
+    const match = retainedMatches[index];
     if (!match || generation !== searchGeneration || destroyed) return;
     clearHighlight();
     await viewer.goToSlide(match.slideIndex, { behavior: "smooth", block: "center" });
@@ -122,33 +129,41 @@ async function navigateToMatch(index, generation) {
 }
 function search(queryValue) {
   const query = String(queryValue ?? "").trim();
-  if (!query) { resetSearch(); console.debug("PPTX search queryLength=0 matches=0"); return true; }
+  if (!query) { resetSearch("", "blank_query"); console.debug(`PPTX search generation=${searchGeneration} queryLength=0 limit=${searchLimit} retained=0 limited=false`); return true; }
   if (!viewer || state.status !== "ready") {
-    resetSearch(query); state.searchErrorCode = "SEARCH_NOT_READY";
-    console.debug(`PPTX search queryLength=${query.length} matches=0 code=SEARCH_NOT_READY`);
+    resetSearch(query, "not_ready"); state.searchErrorCode = "SEARCH_NOT_READY";
+    console.debug(`PPTX search generation=${searchGeneration} queryLength=${query.length} limit=${searchLimit} retained=0 limited=false code=SEARCH_NOT_READY`);
     return false;
   }
-  resetSearch(query);
+  resetSearch(query, "new_query");
   const generation = searchGeneration;
   state.searching = true;
+  const started = performance.now();
   try {
-    matches = viewer.searchText(query, { matchCase: false });
-    state.matchCount = matches.length;
-    console.debug(`PPTX search queryLength=${query.length} matches=${matches.length}`);
-    if (!matches.length) { state.searching = false; return true; }
+    const rawResults = viewer.searchText(query, { matchCase: false });
+    if (generation !== searchGeneration || destroyed) return false;
+    const bounded = boundedSearchResults(rawResults, searchLimit);
+    retainedMatches = bounded.matches;
+    hasMoreMatches = bounded.hasMore;
+    state.matchCount = retainedMatches.length;
+    state.hasMoreMatches = hasMoreMatches;
+    console.debug(`PPTX search generation=${generation} queryLength=${query.length} limit=${searchLimit} returned=${bounded.rawCount} retained=${retainedMatches.length} limited=${hasMoreMatches} durationMs=${Math.round(performance.now()-started)}`);
+    if (!retainedMatches.length) { state.searching = false; return true; }
     state.activeMatchIndex = 0;
     void navigateToMatch(0, generation);
     return true;
   } catch (error) {
-    state.searching = false; state.searchErrorCode = "SEARCH_FAILED";
-    console.error(`PPTX search error code=SEARCH_FAILED queryLength=${query.length} name=${String(error?.name || "Error").slice(0, 60)}`);
+    if (generation !== searchGeneration) return false;
+    resetSearch(query, "search_failed"); state.searchErrorCode = "SEARCH_FAILED";
+    console.error(`PPTX search generation=${searchGeneration} error code=SEARCH_FAILED queryLength=${query.length} limit=${searchLimit} durationMs=${Math.round(performance.now()-started)}`);
     return false;
   }
 }
 function moveMatch(delta) {
-  if (!viewer || !matches.length) return false;
-  const next = wrappedIndex(state.activeMatchIndex, delta, matches.length);
+  if (!viewer || !retainedMatches.length) return false;
+  const next = wrappedIndex(state.activeMatchIndex, delta, retainedMatches.length);
   const generation = ++searchGeneration;
+  state.searchGeneration = generation;
   state.activeMatchIndex = next;
   state.searching = true;
   state.searchErrorCode = "";
@@ -191,8 +206,8 @@ function cleanup() {
   scrollHost.removeEventListener("scroll", scheduleActiveSlide);
   window.removeEventListener("resize", scheduleActiveSlide);
   if (frameId) cancelAnimationFrame(frameId); frameId = 0;
-  mountedSlides.clear(); visibleRatios.clear(); matches = [];
-  state.slide = 1; state.slides = 0; state.query = ""; state.matchCount = 0; state.activeMatchIndex = -1;
+  mountedSlides.clear(); visibleRatios.clear(); retainedMatches = []; hasMoreMatches = false;
+  state.slide = 1; state.slides = 0; state.query = ""; state.matchCount = 0; state.hasMoreMatches = false; state.activeMatchIndex = -1;
   viewer?.off("sliderendered", onSlideRendered).off("slideunmounted", onSlideUnmounted).off("slidechange", onSlideChange);
   viewer?.destroy(); viewer = null;
   return true;
@@ -204,7 +219,7 @@ window.pptxControl = {
   search,
   next: () => moveMatch(1),
   previous: () => moveMatch(-1),
-  clear: () => { resetSearch(); return true; },
+  clear: () => { resetSearch("", "explicit_clear"); return true; },
   fit: () => { if (!viewer) return false; void viewer.setFitMode("contain").then(scheduleActiveSlide); return true; },
   destroy: cleanup,
 };

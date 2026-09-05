@@ -16,12 +16,14 @@ data class PptxRenderBudget(
     val maxEntryBytes: Long,
     val maxEntryCount: Int,
     val maxCompressionRatio: Double,
-    val rendererStallMillis: Long
+    val rendererStallMillis: Long,
+    val maxStoredSearchMatches: Int
 ) {
     fun acceptsCompressedSize(bytes: Long): Boolean = bytes >= 0L && bytes <= maxCompressedBytes
 }
 
 object PptxRenderBudgetPolicy {
+    const val HARD_MAX_STORED_SEARCH_MATCHES = 1_000
     private const val MIB = 1024L * 1024L
     fun profile(context: Context): PptxDeviceProfile {
         val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
@@ -30,9 +32,9 @@ object PptxRenderBudgetPolicy {
     fun forProfile(profile: PptxDeviceProfile): PptxRenderBudget {
         val memory = profile.memoryClassMb.takeIf { it >= 64 } ?: 128
         return when {
-            profile.isLowRamDevice || memory < 192 -> PptxRenderBudget(PptxBudgetCategory.LowRam,64*MIB,192*MIB,32*MIB,2_000,150.0,120_000)
-            memory < 384 -> PptxRenderBudget(PptxBudgetCategory.Standard,128*MIB,384*MIB,64*MIB,4_000,200.0,120_000)
-            else -> PptxRenderBudget(PptxBudgetCategory.HighMemory,256*MIB,512*MIB,128*MIB,6_000,250.0,120_000)
+            profile.isLowRamDevice || memory < 192 -> PptxRenderBudget(PptxBudgetCategory.LowRam,64*MIB,192*MIB,32*MIB,2_000,150.0,120_000,250)
+            memory < 384 -> PptxRenderBudget(PptxBudgetCategory.Standard,128*MIB,384*MIB,64*MIB,4_000,200.0,120_000,500)
+            else -> PptxRenderBudget(PptxBudgetCategory.HighMemory,256*MIB,512*MIB,128*MIB,6_000,250.0,120_000,HARD_MAX_STORED_SEARCH_MATCHES)
         }
     }
 }

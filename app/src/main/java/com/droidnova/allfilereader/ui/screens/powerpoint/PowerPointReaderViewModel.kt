@@ -29,7 +29,7 @@ enum class PptxPhase {
     RendererAssetFailure, RendererFailure, RendererStalled, InsufficientMemory, Failure
 }
 
-data class PptxReady(val file: File, val token: String, val attemptId: Long, val stallMillis: Long)
+data class PptxReady(val file: File, val token: String, val attemptId: Long, val stallMillis: Long, val maxStoredSearchMatches: Int)
 data class PptxState(
     val fileName: String? = null,
     val phase: PptxPhase = PptxPhase.Resolving,
@@ -122,7 +122,7 @@ class PowerPointReaderViewModel @Inject constructor(
                 }
                 coroutineContext.ensureActive()
                 debug("attempt=$attemptId stage=VALIDATED declaredSizeKnown=${session.declaredBytes != null} bytes=${session.byteCount} entries=${session.entryCount} uncompressed=${session.uncompressedBytes} budget=${budget.category}")
-                publish(attemptId, PptxState(document.displayName, PptxPhase.Preparing, PptxReady(session.file, token, attemptId, budget.rendererStallMillis)))
+                publish(attemptId, PptxState(document.displayName, PptxPhase.Preparing, PptxReady(session.file, token, attemptId, budget.rendererStallMillis, budget.maxStoredSearchMatches)))
             } catch (cancelled: CancellationException) {
                 token?.let { sessionStore.release(it, null) }
                 debug("attempt=$attemptId cleanup=CANCELLED")
