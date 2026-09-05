@@ -92,4 +92,7 @@
 <string name="pdf_access_removed_message">This PDF is no longer accessible. Restore storage access and try again.</string>
 <string name="pdf_unsupported">PDF can’t be opened</string>
 <string name="pdf_unsupported_message">This PDF may be damaged, password protected, or unsupported.</string>
+<string name="pdf_invalid_message">This is not a valid PDF document.</string>
+<string name="pdf_storage_message">There isn’t enough storage available to open this PDF.</string>
+<string name="pdf_viewer_failure_message">The PDF could not be displayed.</string>
 </resources>

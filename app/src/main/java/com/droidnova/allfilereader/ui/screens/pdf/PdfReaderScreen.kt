@@ -28,6 +28,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -68,19 +70,20 @@ fun PdfReaderScreen(onBack: () -> Unit, viewModel: PdfReaderViewModel = hiltView
     }) { padding ->
         when (val document = state.document) {
             PdfDocumentState.Loading -> Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            is PdfDocumentState.Ready -> AndroidFragment<PdfViewerFragment>(
-                modifier = Modifier.fillMaxSize().padding(padding)
-            ) { fragment ->
-                viewer = fragment
-                try {
-                    if (fragment.documentUri != document.uri) fragment.documentUri = document.uri
-                } catch (_: UnsupportedOperationException) {
-                    viewModel.viewerUnsupported()
+            is PdfDocumentState.Ready -> key(document.attemptId) {
+                DisposableEffect(document.attemptId){onDispose{viewer=null;viewModel.releaseSource(document.attemptId)}}
+                AndroidFragment<PdfViewerFragment>(modifier = Modifier.fillMaxSize().padding(padding)) { fragment ->
+                    viewer = fragment
+                    try { if(fragment.documentUri!=document.source.uri)fragment.documentUri=document.source.uri }
+                    catch (_:Exception){viewModel.viewerFailed(document.attemptId)}
                 }
             }
             PdfDocumentState.NotFound -> PdfError(R.string.pdf_not_found, R.string.pdf_not_found_message, padding, onBack, viewModel::retry)
             PdfDocumentState.AccessDenied -> PdfError(R.string.pdf_access_removed, R.string.pdf_access_removed_message, padding, onBack, requestAccess)
             PdfDocumentState.Unsupported -> PdfError(R.string.pdf_unsupported, R.string.pdf_unsupported_message, padding, onBack, null)
+            PdfDocumentState.Invalid -> PdfError(R.string.pdf_unsupported,R.string.pdf_invalid_message,padding,onBack,viewModel::retry)
+            PdfDocumentState.InsufficientStorage -> PdfError(R.string.pdf_unsupported,R.string.pdf_storage_message,padding,onBack,viewModel::retry)
+            PdfDocumentState.ViewerFailure -> PdfError(R.string.pdf_unsupported,R.string.pdf_viewer_failure_message,padding,onBack,viewModel::retry)
         }
     }
 }
