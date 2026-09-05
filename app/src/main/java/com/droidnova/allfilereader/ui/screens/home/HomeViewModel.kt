@@ -67,7 +67,8 @@ class HomeViewModel @Inject constructor(
             loadJob?.cancel()
             _uiState.value = HomeUiState(counts = HomeCountState.Unavailable, hasAccess = false)
         } else {
-            load(true)
+            // Permission rechecks must not turn destination resume into a filesystem refresh.
+            load(false)
         }
     }
 

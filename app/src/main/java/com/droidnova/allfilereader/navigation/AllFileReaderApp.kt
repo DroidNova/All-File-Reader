@@ -160,14 +160,12 @@ fun AllFileReaderApp(
                     onFavoritesSelected = {
                         navController.navigate(FavoritesRoute)
                     }, onSearch = {
+                        fileNavigationViewModel.requestRecentSearch()
                         navController.navigate(RecentRoute) {
                             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                             launchSingleTop = true
                             restoreState = true
                         }
-                        navController.currentBackStackEntry?.savedStateHandle?.set(
-                            com.droidnova.allfilereader.ui.screens.files.FilesViewModel.ACTIVATE_KEY, true
-                        )
                     }
                 )
             }

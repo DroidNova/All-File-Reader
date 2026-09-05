@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
@@ -31,6 +32,8 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.testTag
+import androidx.compose.runtime.withFrameNanos
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -51,16 +54,17 @@ import kotlinx.coroutines.launch
  LaunchedEffect(Unit){viewModel.favoriteErrors.collect{snackbar.showSnackbar(favoriteError)}}
  LaunchedEffect(pager.settledPage){val filter=RecentDocumentFilter.entries[pager.settledPage];if(filter!=selected)viewModel.selectFilter(filter)}
  LaunchedEffect(selected){if(pager.currentPage!=selected.ordinal)pager.animateScrollToPage(selected.ordinal)}
- LaunchedEffect(state.searchActive){if(state.searchActive){focus.requestFocus();keyboard?.show()}}
+ LaunchedEffect(state.searchActive,state.focusRequestId){val id=state.focusRequestId;if(state.searchActive&&id!=null){withFrameNanos{};focus.requestFocus();keyboard?.show();viewModel.onFocusRequestHandled(id)}}
  LifecycleResumeEffect(Unit){viewModel.onResume();onPauseOrDispose{}}
  BackHandler(state.searchActive){keyboard?.hide();viewModel.exitSearch()}
  Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),snackbarHost={SnackbarHost(snackbar)},topBar={Column{
-   if(state.searchActive)TopAppBar(title={TextField(state.query,viewModel::setQuery,Modifier.fillMaxWidth().focusRequester(focus),
+   if(state.searchActive)TopAppBar(title={TextField(state.query,viewModel::setQuery,Modifier.fillMaxWidth().focusRequester(focus).testTag("recent_search_field"),
       placeholder={Text(stringResource(R.string.search_files))},singleLine=true,keyboardOptions=KeyboardOptions(imeAction=ImeAction.Search),
+      keyboardActions=KeyboardActions(onSearch={keyboard?.hide()}),
       trailingIcon={if(state.query.isNotEmpty())IconButton(onClick={viewModel.setQuery("")}){Icon(Icons.Default.Close,stringResource(R.string.clear_search))}},
       colors=TextFieldDefaults.colors(focusedContainerColor=Color.Transparent,unfocusedContainerColor=Color.Transparent))},
       navigationIcon={IconButton(onClick={keyboard?.hide();viewModel.exitSearch()}){Icon(Icons.Default.ArrowBack,stringResource(R.string.back))}})
-   else TopAppBar(title={Text(stringResource(R.string.recent))},actions={IconButton(onClick=viewModel::activateSearch){Icon(Icons.Default.Search,stringResource(R.string.search_files))}})
+   else TopAppBar(title={Text(stringResource(R.string.recent))},actions={IconButton(onClick=viewModel::requestSearchFromRecent){Icon(Icons.Default.Search,stringResource(R.string.search_files))}})
    RecentFilterRow(pager.currentPage){scope.launch{pager.animateScrollToPage(it)}}
  }}){padding->HorizontalPager(pager,Modifier.fillMaxSize().padding(padding),key={RecentDocumentFilter.entries[it].name}){page->
    val filter=RecentDocumentFilter.entries[page];val pageDocuments=remember(state.results,filter){state.results.filter(filter::matches)}

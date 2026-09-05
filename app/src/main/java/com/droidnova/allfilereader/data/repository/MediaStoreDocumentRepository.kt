@@ -4,6 +4,8 @@ import android.content.Context
 import android.os.Build
 import android.os.Environment
 import android.os.storage.StorageManager
+import android.util.Log
+import com.droidnova.allfilereader.BuildConfig
 import com.droidnova.allfilereader.domain.model.DocumentCategory
 import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.model.DocumentFile
@@ -64,7 +66,8 @@ class MediaStoreDocumentRepository @Inject constructor(
             clearSnapshots()
             throw SecurityException("Storage access is required")
         }
-        if (!forceRefresh) cache?.let { return@withLock it }
+        if (!forceRefresh) cache?.let { if(BuildConfig.DEBUG)Log.d(TAG,"cache=hit count=${it.size}");return@withLock it }
+        if(BuildConfig.DEBUG)Log.d(TAG,"scan=start reason=${if(forceRefresh)"explicit_refresh" else "initial_load"}")
         val result = withContext(Dispatchers.IO) { scan() }
         if (!permissionManager.isGranted()) {
             clearSnapshots()
@@ -75,6 +78,7 @@ class MediaStoreDocumentRepository @Inject constructor(
             knownDocuments.putAll(result.associateBy(DocumentFile::id))
         }
         _documents.value = result
+        if(BuildConfig.DEBUG)Log.d(TAG,"scan=end count=${result.size}")
         result
     }
 
@@ -151,6 +155,8 @@ class MediaStoreDocumentRepository @Inject constructor(
         _documents.value = emptyList()
         pagingRefreshRequested.set(false)
     }
+
+    private companion object { const val TAG = "DocumentSessionCache" }
 
 }
 class DocumentAccessException(cause: Throwable) : Exception(cause)

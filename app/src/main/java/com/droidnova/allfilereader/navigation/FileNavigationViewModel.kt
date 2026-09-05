@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 @HiltViewModel
 class FileNavigationViewModel @Inject constructor(
-    private val repository: DocumentRepository
+    private val repository: DocumentRepository,
+    private val recentSearchCoordinator: RecentSearchCoordinator
 ) : ViewModel() {
     private val _unsupported = MutableStateFlow<DocumentFile?>(null)
     val unsupported = _unsupported.asStateFlow()
@@ -25,4 +26,5 @@ class FileNavigationViewModel @Inject constructor(
     fun beginExternal(): DocumentFile? { if(launching)return null; launching=true; return _unsupported.value }
     fun externalResult(result:ExternalOpenResult) { launching=false; _unsupported.value=null; if(result!=ExternalOpenResult.Launched)_externalError.value=result }
     fun dismissExternalError(){_externalError.value=null}
+    fun requestRecentSearch() { recentSearchCoordinator.request(SearchActivationSource.Home) }
 }
