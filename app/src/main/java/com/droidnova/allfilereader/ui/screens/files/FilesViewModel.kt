@@ -11,6 +11,7 @@ import com.droidnova.allfilereader.domain.repository.DocumentRepository
 import com.droidnova.allfilereader.domain.repository.FavoritesRepository
 import com.droidnova.allfilereader.domain.search.FilenameSearch
 import com.droidnova.allfilereader.navigation.RecentSearchCoordinator
+import com.droidnova.allfilereader.navigation.SearchActivationRequest
 import com.droidnova.allfilereader.navigation.SearchActivationSource
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -30,7 +31,31 @@ enum class RecentDocumentFilter(val category: DocumentCategory?) {
 data class FilesUiState(val hasAccess:Boolean,val permissionPromptDismissed:Boolean=false,
     val searchActive:Boolean=false,val query:String="",val results:List<DocumentFile> = emptyList(),
     val searching:Boolean=false,val searchFailed:Boolean=false,val refreshing:Boolean=false,
-    val focusRequestId:Long?=null)
+    val focusRequestId:Long?=null,val categoryResetRequestId:Long?=null)
+
+internal data class SearchActivationChange(
+    val state: FilesUiState,
+    val selectedFilter: RecentDocumentFilter
+)
+
+internal fun applySearchActivation(
+    current: FilesUiState,
+    selectedFilter: RecentDocumentFilter,
+    lastHandledRequestId: Long?,
+    request: SearchActivationRequest
+): SearchActivationChange? {
+    if (lastHandledRequestId == request.id) return null
+    return SearchActivationChange(
+        state = current.copy(
+            searchActive = true,
+            query = if (request.clearQuery) "" else current.query,
+            searching = false,
+            focusRequestId = request.id,
+            categoryResetRequestId = request.id.takeIf { request.resetCategoryToAll }
+        ),
+        selectedFilter = if (request.resetCategoryToAll) RecentDocumentFilter.All else selectedFilter
+    )
+}
 
 @HiltViewModel class FilesViewModel @Inject constructor(private val repository:DocumentRepository,
     private val access:MediaPermissionManager,private val favoritesRepository:FavoritesRepository,
@@ -49,12 +74,20 @@ data class FilesUiState(val hasAccess:Boolean,val permissionPromptDismissed:Bool
                 _state.update{it.copy(results=visible,searching=false,searchFailed=false)} }
         }
         viewModelScope.launch { searchCoordinator.pending.collect { request -> request?.let {
-            activateSearch(it.id,it.source==SearchActivationSource.Home);searchCoordinator.acknowledge(it.id)
+            handleSearchActivation(it);searchCoordinator.acknowledge(it.id)
         }
         } }
     }
     fun requestSearchFromRecent(){searchCoordinator.request(SearchActivationSource.Recent)}
-    fun activateSearch(requestId:Long,resetCategoryToAll:Boolean){if((saved[LAST_ACTIVATION_KEY]?:Long.MIN_VALUE)==requestId)return;saved[LAST_ACTIVATION_KEY]=requestId;if(resetCategoryToAll)saved[FILTER_KEY]=RecentDocumentFilter.All;saved[ACTIVE_KEY]=true;_state.update{it.copy(searchActive=true,focusRequestId=requestId)}}
+    fun handleSearchActivation(request:SearchActivationRequest){
+        val change=applySearchActivation(_state.value,selectedFilter.value,saved[LAST_ACTIVATION_KEY],request)?:return
+        saved[LAST_ACTIVATION_KEY]=request.id
+        saved[FILTER_KEY]=change.selectedFilter
+        saved[ACTIVE_KEY]=true
+        if(request.clearQuery)saved[QUERY_KEY]=""
+        _state.value=change.state
+    }
+    fun onCategoryResetApplied(id:Long){_state.update{if(it.categoryResetRequestId==id)it.copy(categoryResetRequestId=null)else it}}
     fun onFocusRequestHandled(id:Long){_state.update{if(it.focusRequestId==id)it.copy(focusRequestId=null)else it}}
     fun exitSearch(){saved[ACTIVE_KEY]=false;saved[QUERY_KEY]="";_state.update{it.copy(searchActive=false,query="",focusRequestId=null,searching=false)}}
     fun setQuery(value:String){val bounded=value.take(FilenameSearch.MAX_QUERY_LENGTH);saved[QUERY_KEY]=bounded;_state.update{if(it.query==bounded)it else it.copy(query=bounded,searching=bounded.trim().isNotEmpty())}}

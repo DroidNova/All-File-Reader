@@ -25,4 +25,10 @@ class PptxBridgeContractTest {
         assertTrue(js.contains("observer?.disconnect()")); assertTrue(js.contains("cancelAnimationFrame"));
         assertTrue(js.contains("destroyCalled")); assertTrue(js.contains("viewer?.destroy()"))
     }
+    @Test fun rendererReportsBoundedProgressStagesAndNativeUsesInactivityWatchdog() {
+        listOf("viewer_loaded", "document_fetch_started", "document_fetch_complete", "render_started", "first_slide_rendered", "render_complete", "render_failed").forEach { assertTrue(js.contains(it)) }
+        assertTrue(kotlin.contains("lastProgressAt"))
+        assertTrue(kotlin.contains("RendererStalled"))
+        assertTrue(kotlin.contains("ready.stallMillis"))
+    }
 }

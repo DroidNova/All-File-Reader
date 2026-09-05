@@ -52,9 +52,13 @@ import kotlinx.coroutines.launch
  val keyboard=LocalSoftwareKeyboardController.current;val focus=remember{FocusRequester()};val snackbar=remember{SnackbarHostState()}
  val favoriteError=stringResource(R.string.favorites_update_failed)
  LaunchedEffect(Unit){viewModel.favoriteErrors.collect{snackbar.showSnackbar(favoriteError)}}
- LaunchedEffect(pager.settledPage){val filter=RecentDocumentFilter.entries[pager.settledPage];if(filter!=selected)viewModel.selectFilter(filter)}
- LaunchedEffect(selected){if(pager.currentPage!=selected.ordinal)pager.animateScrollToPage(selected.ordinal)}
- LaunchedEffect(state.searchActive,state.focusRequestId){val id=state.focusRequestId;if(state.searchActive&&id!=null){withFrameNanos{};focus.requestFocus();keyboard?.show();viewModel.onFocusRequestHandled(id)}}
+ LaunchedEffect(pager.settledPage,state.categoryResetRequestId){if(state.categoryResetRequestId==null){val filter=RecentDocumentFilter.entries[pager.settledPage];if(filter!=selected)viewModel.selectFilter(filter)}}
+ LaunchedEffect(selected,state.categoryResetRequestId){
+  val resetId=state.categoryResetRequestId
+  if(resetId!=null){pager.scrollToPage(RecentDocumentFilter.All.ordinal);viewModel.onCategoryResetApplied(resetId)}
+  else if(pager.currentPage!=selected.ordinal)pager.animateScrollToPage(selected.ordinal)
+ }
+ LaunchedEffect(state.searchActive,state.focusRequestId,state.categoryResetRequestId){val id=state.focusRequestId;if(state.searchActive&&id!=null&&state.categoryResetRequestId==null){withFrameNanos{};focus.requestFocus();keyboard?.show();viewModel.onFocusRequestHandled(id)}}
  LifecycleResumeEffect(Unit){viewModel.onResume();onPauseOrDispose{}}
  BackHandler(state.searchActive){keyboard?.hide();viewModel.exitSearch()}
  Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),snackbarHost={SnackbarHost(snackbar)},topBar={Column{
