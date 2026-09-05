@@ -45,6 +45,9 @@
 <string name="txt_reset_font_size">Reset font size</string>
 <string name="txt_word_wrap">Word wrap</string>
 <string name="reader_unavailable">A reader for this file type is not available yet.</string>
+<string name="search_files">Search files</string><string name="clear_search">Clear search</string><string name="search_your_files">Search your files</string><string name="search_by_file_name">Search by file name.</string><string name="try_different_file_name">Try a different file name.</string><string name="search_failed">Files could not be searched. Try again.</string>
+<string name="unsupported_file_title">File type not supported</string><string name="unsupported_file_message">This file format is not supported by All File Reader yet.\n\nYou can try opening it with another compatible app.</string><string name="open_with_another_app">Open with another app</string><string name="cancel">Cancel</string>
+<string name="no_compatible_app_title">No compatible app found</string><string name="no_compatible_app_message">No installed app can open this file type.</string><string name="external_preparation_title">File could not be prepared</string><string name="external_preparation_message">This file could not be safely prepared for another app.</string>
 <string name="incoming_unsupported_title">File type not supported</string>
 <string name="incoming_unsupported_message">All File Reader cannot open this file type yet.</string>
 <string name="incoming_mismatch_title">File format does not match</string>

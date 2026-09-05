@@ -32,14 +32,14 @@ private data class HomeCategory(@StringRes val label:Int,val icon:ImageVector,va
 internal const val SHOW_DIRECTORIES_ON_HOME = false
 internal fun isHomeCategoryVisible(special: String?): Boolean =
     special != "directories" || SHOW_DIRECTORIES_ON_HOME
-@Composable fun HomeScreen(onCategorySelected:(String)->Unit,onDirectoriesSelected:()->Unit,onFavoritesSelected:()->Unit,viewModel:HomeViewModel=hiltViewModel()){
+@Composable fun HomeScreen(onCategorySelected:(String)->Unit,onDirectoriesSelected:()->Unit,onFavoritesSelected:()->Unit,onSearch:()->Unit={},viewModel:HomeViewModel=hiltViewModel()){
  val state by viewModel.uiState.collectAsStateWithLifecycle();LifecycleResumeEffect(Unit){viewModel.onResume();onPauseOrDispose{}}
  val request=rememberStorageAccessRequest(viewModel::onResume)
- HomeScreenContent(state,viewModel::refresh,request,viewModel::dismissPermission,onCategorySelected,onDirectoriesSelected,onFavoritesSelected)
+ HomeScreenContent(state,viewModel::refresh,request,viewModel::dismissPermission,onCategorySelected,onDirectoriesSelected,onFavoritesSelected,onSearch)
 }
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable internal fun HomeScreenContent(state:HomeUiState,onRefresh:()->Unit,onAllow:()->Unit,onNotNow:()->Unit,onCategory:(String)->Unit,onDirectories:()->Unit,onFavorites:()->Unit){
- Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),topBar={TopAppBar(title={Text(stringResource(R.string.app_name))})}){pad->
+@Composable internal fun HomeScreenContent(state:HomeUiState,onRefresh:()->Unit,onAllow:()->Unit,onNotNow:()->Unit,onCategory:(String)->Unit,onDirectories:()->Unit,onFavorites:()->Unit,onSearch:()->Unit={}){
+ Scaffold(contentWindowInsets=WindowInsets(0,0,0,0),topBar={TopAppBar(title={Text(stringResource(R.string.app_name))},actions={IconButton(onClick=onSearch){Icon(Icons.Default.Search,stringResource(R.string.search_files))}})}){pad->
   PullToRefreshBox(state.isRefreshing,onRefresh,Modifier.fillMaxSize().padding(pad)){
    val c=MaterialTheme.colorScheme;val cards=listOf(
     HomeCategory(R.string.all_files,Icons.Default.InsertDriveFile,c.primary,FileCategory.All,model=null),HomeCategory(R.string.pdf,Icons.Default.PictureAsPdf,c.error,FileCategory.Pdf,model=DocumentCategory.Pdf),

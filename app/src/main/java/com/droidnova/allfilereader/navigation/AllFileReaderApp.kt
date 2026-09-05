@@ -30,6 +30,7 @@ import com.droidnova.allfilereader.R
 import com.droidnova.allfilereader.domain.model.DocumentFile
 import com.droidnova.allfilereader.domain.reader.DocumentReaderDestination
 import com.droidnova.allfilereader.domain.reader.DocumentReaderResolver
+import com.droidnova.allfilereader.domain.reader.DocumentOpenResult
 import com.droidnova.allfilereader.ui.components.AppBottomNavigation
 import com.droidnova.allfilereader.ui.components.MandatoryStoragePermissionSheet
 import com.droidnova.allfilereader.ui.components.rememberStorageAccessRequest
@@ -45,6 +46,7 @@ import com.droidnova.allfilereader.ui.screens.word.WordReaderScreen
 import com.droidnova.allfilereader.ui.screens.excel.ExcelReaderScreen
 import com.droidnova.allfilereader.ui.screens.powerpoint.PowerPointReaderScreen
 import kotlinx.coroutines.launch
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -62,6 +64,9 @@ fun AllFileReaderApp(
     val accessState by storageAccessViewModel.state.collectAsStateWithLifecycle()
     val incomingState by incomingDocumentViewModel.state.collectAsStateWithLifecycle()
     val requestAccess = rememberStorageAccessRequest(storageAccessViewModel::recheck)
+    val unsupported by fileNavigationViewModel.unsupported.collectAsStateWithLifecycle()
+    val externalError by fileNavigationViewModel.externalError.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     LifecycleResumeEffect(Unit) {
         storageAccessViewModel.recheck()
         onPauseOrDispose { }
@@ -76,21 +81,23 @@ fun AllFileReaderApp(
     }
     val onDocumentClick: (DocumentFile) -> Unit = { document ->
         fileNavigationViewModel.remember(document)
-        when (DocumentReaderResolver.resolve(document)) {
+        when (val result = DocumentReaderResolver.resolve(document)) {
+            is DocumentOpenResult.Internal -> when(result.destination) {
             DocumentReaderDestination.Pdf -> navController.navigate(PdfReaderRoute(document.id)) {
                 launchSingleTop = true
             }
             DocumentReaderDestination.PlainText -> navController.navigate(TxtReaderRoute(document.id)) {
                 launchSingleTop = true
             }
-            DocumentReaderDestination.Docx, DocumentReaderDestination.LegacyWord ->
+            DocumentReaderDestination.Docx ->
                 navController.navigate(WordReaderRoute(document.id)) { launchSingleTop = true }
             DocumentReaderDestination.Spreadsheet ->
                 navController.navigate(ExcelReaderRoute(document.id)) { launchSingleTop = true }
             DocumentReaderDestination.PowerPoint -> navController.navigate(PowerPointReaderRoute(document.id)) { launchSingleTop = true }
-            DocumentReaderDestination.Unsupported -> coroutineScope.launch {
-                snackbarHostState.showSnackbar(unavailableMessage)
             }
+            DocumentOpenResult.LegacyPowerPoint -> navController.navigate(PowerPointReaderRoute(document.id)) { launchSingleTop=true }
+            DocumentOpenResult.Unsupported -> fileNavigationViewModel.showUnsupported(document)
+            DocumentOpenResult.AccessFailure, DocumentOpenResult.FormatMismatch -> coroutineScope.launch { snackbarHostState.showSnackbar(unavailableMessage) }
         }
     }
     val isRootDestination = AppDestination.entries.any { destination ->
@@ -152,6 +159,13 @@ fun AllFileReaderApp(
                     },
                     onFavoritesSelected = {
                         navController.navigate(FavoritesRoute)
+                    }, onSearch = {
+                        fileNavigationViewModel.requestRecentSearch()
+                        navController.navigate(RecentRoute) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
                     }
                 )
             }
@@ -230,4 +244,12 @@ fun AllFileReaderApp(
             confirmButton = { TextButton(onClick = incomingDocumentViewModel::dismissError) { Text(stringResource(R.string.back)) } }
         )
     }
+    unsupported?.let { document -> AlertDialog(onDismissRequest=fileNavigationViewModel::dismissUnsupported,
+        title={Text(stringResource(R.string.unsupported_file_title))},text={Text(stringResource(R.string.unsupported_file_message))},
+        confirmButton={TextButton(onClick={fileNavigationViewModel.beginExternal()?.let { fileNavigationViewModel.externalResult(UnsupportedFileExternalOpener.open(context,it)) }}){Text(stringResource(R.string.open_with_another_app))}},
+        dismissButton={TextButton(onClick=fileNavigationViewModel::dismissUnsupported){Text(stringResource(R.string.cancel))}}) }
+    externalError?.let { result -> AlertDialog(onDismissRequest=fileNavigationViewModel::dismissExternalError,
+        title={Text(stringResource(if(result==ExternalOpenResult.NoCompatibleApp)R.string.no_compatible_app_title else R.string.external_preparation_title))},
+        text={Text(stringResource(if(result==ExternalOpenResult.NoCompatibleApp)R.string.no_compatible_app_message else R.string.external_preparation_message))},
+        confirmButton={TextButton(onClick=fileNavigationViewModel::dismissExternalError){Text(stringResource(android.R.string.ok))}}) }
 }
