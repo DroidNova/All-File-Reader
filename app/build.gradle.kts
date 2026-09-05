@@ -24,9 +24,15 @@ android {
 
     buildTypes {
         release {
+            isMinifyEnabled = true
             optimization {
-                enable = false
+                enable = true
+                keepRules {
+                    includeDefault = true
+                    files.add(file("proguard-rules.pro"))
+                }
             }
+            isShrinkResources = true
         }
     }
     compileOptions {

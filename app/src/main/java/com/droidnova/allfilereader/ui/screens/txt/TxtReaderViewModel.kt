@@ -285,4 +285,6 @@ private fun TxtReaderContent.traceName(): String = when (this) {
     TxtReaderContent.ReadError -> "FAILURE"
 }
 
-private fun trace(message: String) = Log.d("TxtReaderTrace", message)
+private fun trace(message: String) {
+    if (BuildConfig.DEBUG) Log.d("TxtReaderTrace", message)
+}
