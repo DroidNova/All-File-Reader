@@ -11,6 +11,7 @@ import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.model.DocumentFile
 import com.droidnova.allfilereader.domain.model.DocumentIds
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
+import com.droidnova.allfilereader.domain.repository.FavoritesRepository
 import com.droidnova.allfilereader.data.paging.LocalMetadataPagingConfig
 import com.droidnova.allfilereader.data.paging.SnapshotPagingSource
 import com.droidnova.allfilereader.data.permission.MediaPermissionManager
@@ -30,12 +31,16 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.security.MessageDigest
 import kotlin.coroutines.coroutineContext
 
 class MediaStoreDocumentRepository @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val permissionManager: MediaPermissionManager
+    private val permissionManager: MediaPermissionManager,
+    private val favoritesRepository: FavoritesRepository
 ) : DocumentRepository {
     private val scanMutex = Mutex()
     private var cache: List<DocumentFile>? = null
@@ -43,6 +48,8 @@ class MediaStoreDocumentRepository @Inject constructor(
     override val documents: StateFlow<List<DocumentFile>> = _documents.asStateFlow()
     private val knownDocuments = LinkedHashMap<String, DocumentFile>()
     private val pagingRefreshRequested = AtomicBoolean(false)
+    private val scanGeneration = AtomicLong(0)
+    private var authoritativeEvidence: DocumentSnapshotEvidence? = null
 
     override fun pagedDocuments(category: DocumentCategory?): Flow<PagingData<DocumentFile>> = Pager(
         config = LocalMetadataPagingConfig,
@@ -61,25 +68,59 @@ class MediaStoreDocumentRepository @Inject constructor(
 
     override fun requestPagingRefresh() { pagingRefreshRequested.set(true) }
 
-    override suspend fun getDocuments(forceRefresh: Boolean): List<DocumentFile> = scanMutex.withLock {
+    override suspend fun getDocuments(forceRefresh: Boolean): List<DocumentFile> {
+        val generation = scanGeneration.incrementAndGet()
+        return scanMutex.withLock {
         if (!permissionManager.isGranted()) {
             clearSnapshots()
             throw SecurityException("Storage access is required")
         }
         if (!forceRefresh) cache?.let { if(BuildConfig.DEBUG)Log.d(TAG,"cache=hit count=${it.size}");return@withLock it }
-        if(BuildConfig.DEBUG)Log.d(TAG,"scan=start reason=${if(forceRefresh)"explicit_refresh" else "initial_load"}")
-        val result = withContext(Dispatchers.IO) { scan() }
+        if(BuildConfig.DEBUG)Log.d(TAG,"scan=start generation=$generation reason=${if(forceRefresh)"explicit_refresh" else "initial_load"}")
+        val favoriteIdsBeforeScan = favoritesRepository.favoriteIds.first()
+        val outcome = try {
+            withContext(Dispatchers.IO) { scan() }
+        } catch (cancelled: CancellationException) {
+            if(BuildConfig.DEBUG)Log.d(TAG,"scan=end generation=$generation result=cancelled reconciliation=skipped")
+            throw cancelled
+        } catch (error: Exception) {
+            if(BuildConfig.DEBUG)Log.d(TAG,"scan=end generation=$generation result=failure code=${error.javaClass.simpleName} reconciliation=skipped")
+            throw error
+        }
         if (!permissionManager.isGranted()) {
+            if(BuildConfig.DEBUG)Log.d(TAG,"scan=end generation=$generation result=permission_revoked reconciliation=skipped")
             clearSnapshots()
             throw SecurityException("Storage access was revoked")
         }
+        if (!outcome.coverage.completed) {
+            if(BuildConfig.DEBUG)Log.d(TAG,"scan=end generation=$generation result=partial completedRoots=${outcome.coverage.completedRootIds.size} unavailableRoots=${outcome.coverage.unavailableRootIds.size} reconciliation=skipped")
+            throw DocumentAccessException(java.io.IOException("Document scan was incomplete"))
+        }
+        val result = outcome.documents
+        val currentEvidence = DocumentSnapshotEvidence(result.mapTo(hashSetOf(), DocumentFile::id), outcome.rootByDocumentId)
+        val deletedFavoriteIds = confirmedDeletedFavoriteIds(
+            favoriteIdsBeforeScan,
+            authoritativeEvidence,
+            currentEvidence,
+            outcome.coverage
+        )
+        if (generation != scanGeneration.get() || !permissionManager.isGranted()) {
+            if(BuildConfig.DEBUG)Log.d(TAG,"scan=end generation=$generation result=stale reconciliation=skipped")
+            throw SecurityException("Storage access changed during reconciliation")
+        }
+        val removed = favoritesRepository.removeFavorites(deletedFavoriteIds).getOrElse {
+            if(BuildConfig.DEBUG)Log.d(TAG,"scan=end generation=$generation result=authoritative reconciliation=write_failed considered=${favoriteIdsBeforeScan.size}")
+            throw DocumentAccessException(it)
+        }
         cache = result
+        authoritativeEvidence = currentEvidence
         synchronized(knownDocuments) {
             knownDocuments.putAll(result.associateBy(DocumentFile::id))
         }
         _documents.value = result
-        if(BuildConfig.DEBUG)Log.d(TAG,"scan=end count=${result.size}")
+        if(BuildConfig.DEBUG)Log.d(TAG,"scan=end generation=$generation result=authoritative completedRoots=${outcome.coverage.completedRootIds.size} unavailableRoots=0 considered=${favoriteIdsBeforeScan.size} confirmedDeleted=${deletedFavoriteIds.size} removed=$removed count=${result.size}")
         result
+        }
     }
 
     override fun rememberDocument(document: DocumentFile) {
@@ -101,39 +142,64 @@ class MediaStoreDocumentRepository @Inject constructor(
         }
     }
 
-    private suspend fun scan(): List<DocumentFile> {
+    private data class ScanOutcome(
+        val documents: List<DocumentFile>,
+        val rootByDocumentId: Map<String, String>,
+        val coverage: ScanCoverage
+    )
+
+    private suspend fun scan(): ScanOutcome {
         val found = LinkedHashMap<String, DocumentFile>()
-        val visited = HashSet<String>()
-        val queue = ArrayDeque<File>()
-        storageRoots().forEach(queue::add)
-        while (queue.isNotEmpty()) {
-            coroutineContext.ensureActive()
-            if (!permissionManager.isGranted()) throw SecurityException("Storage access was revoked")
-            val directory = queue.removeFirst()
-            val canonical = runCatching { directory.canonicalPath }.getOrNull() ?: continue
-            if (!visited.add(canonical) || isRestricted(canonical)) continue
-            val children = try { directory.listFiles() } catch (_: SecurityException) { null } ?: continue
-            for (file in children) {
+        val rootsByPath = LinkedHashMap<String, String>()
+        val completedRoots = linkedSetOf<String>()
+        val unavailableRoots = linkedSetOf<String>()
+        var rootDiscoveryComplete = true
+        for (root in storageRoots()) {
+            val rootPath = runCatching { root.canonicalPath }.getOrNull()
+            if (rootPath == null) { rootDiscoveryComplete = false; continue }
+            val rootId = privateRootId(rootPath)
+            val visited = HashSet<String>()
+            val queue = ArrayDeque<File>().apply { add(root) }
+            var complete = true
+            while (queue.isNotEmpty()) {
                 coroutineContext.ensureActive()
-                if (file.isDirectory) {
-                    if (!file.isHidden) queue.add(file)
-                    continue
+                if (!permissionManager.isGranted()) throw SecurityException("Storage access was revoked")
+                val directory = queue.removeFirst()
+                val canonical = runCatching { directory.canonicalPath }.getOrNull()
+                if (canonical == null) { complete = false; continue }
+                if (!visited.add(canonical) || isRestricted(canonical)) continue
+                val children = try { directory.listFiles() } catch (_: SecurityException) { null }
+                if (children == null) { complete = false; continue }
+                for (file in children) {
+                    coroutineContext.ensureActive()
+                    if (file.isDirectory) {
+                        if (!file.isHidden) queue.add(file)
+                        continue
+                    }
+                    val extension = DocumentClassifier.extensionOf(file.name)
+                    val classification = DocumentClassifier.classifyMetadata(null, extension)
+                    if (!DocumentClassifier.isVisibleDocument(classification)) continue
+                    val category = classification.category ?: continue
+                    val path = runCatching { file.canonicalPath }.getOrNull()
+                    if (path == null) { complete = false; continue }
+                    found[path] = DocumentFile(
+                        id = DocumentIds.fromStorageLocation(path), displayName = file.name, uri = file.toURI().toString(),
+                        mimeType = null, extension = extension, sizeBytes = runCatching { file.length() }.getOrDefault(-1),
+                        lastModifiedEpochMillis = runCatching { file.lastModified() }.getOrDefault(0),
+                        category = category, isBookmarked = false
+                    )
+                    rootsByPath[path] = rootId
                 }
-                val extension = DocumentClassifier.extensionOf(file.name)
-                val classification = DocumentClassifier.classifyMetadata(null, extension)
-                // Traversal continues through every directory, but non-document metadata is discarded.
-                if (!DocumentClassifier.isVisibleDocument(classification)) continue
-                val category = classification.category ?: continue
-                val path = runCatching { file.canonicalPath }.getOrNull() ?: continue
-                found[path] = DocumentFile(
-                    id = DocumentIds.fromStorageLocation(path), displayName = file.name, uri = file.toURI().toString(),
-                    mimeType = null, extension = extension, sizeBytes = runCatching { file.length() }.getOrDefault(-1),
-                    lastModifiedEpochMillis = runCatching { file.lastModified() }.getOrDefault(0),
-                    category = category, isBookmarked = false
-                )
             }
+            if (complete) completedRoots += rootId else unavailableRoots += rootId
         }
-        return found.values.sortedWith(compareByDescending<DocumentFile> { it.lastModifiedEpochMillis }.thenByDescending { it.id })
+        val documents = found.values.sortedWith(compareByDescending<DocumentFile> { it.lastModifiedEpochMillis }.thenByDescending { it.id })
+        val rootsById = found.map { (path, document) -> document.id to rootsByPath.getValue(path) }.toMap()
+        return ScanOutcome(
+            documents,
+            rootsById,
+            ScanCoverage(completedRoots, unavailableRoots, permissionManager.isGranted(), rootDiscoveryComplete && unavailableRoots.isEmpty())
+        )
     }
 
     private fun storageRoots(): List<File> {
@@ -152,6 +218,7 @@ class MediaStoreDocumentRepository @Inject constructor(
 
     override fun clearSnapshots() {
         cache = null
+        authoritativeEvidence = null
         synchronized(knownDocuments) { knownDocuments.clear() }
         _documents.value = emptyList()
         pagingRefreshRequested.set(false)
@@ -160,4 +227,5 @@ class MediaStoreDocumentRepository @Inject constructor(
     private companion object { const val TAG = "DocumentSessionCache" }
 
 }
+private fun privateRootId(canonicalPath:String):String=MessageDigest.getInstance("SHA-256").digest(canonicalPath.toByteArray()).take(12).joinToString(""){"%02x".format(it)}
 class DocumentAccessException(cause: Throwable) : Exception(cause)

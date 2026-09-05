@@ -28,4 +28,16 @@ class FavoriteSetTest {
         val locator = "/storage/emulated/0/Documents/report.pdf"
         assertEquals(DocumentIds.fromStorageLocation(locator), DocumentIds.fromStorageLocation(locator))
     }
+
+    @Test fun bulkRemovalSubtractsOnlyRequestedIdsAndIsIdempotent() {
+        val original = setOf("one", "two", "three")
+        val once = removeFavoriteIds(original, setOf("one", "two"))
+        assertEquals(setOf("three"), once)
+        assertEquals(once, removeFavoriteIds(once, setOf("one", "two")))
+    }
+
+    @Test fun emptyBulkRemovalIsANoOp() {
+        val original = setOf("one")
+        assertTrue(original === removeFavoriteIds(original, emptySet()))
+    }
 }

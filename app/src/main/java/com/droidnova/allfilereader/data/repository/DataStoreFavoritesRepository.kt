@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private val Context.favoritesDataStore by preferencesDataStore(name = "document_favorites")
 
@@ -25,6 +28,8 @@ internal fun applyFavoriteChange(current: Set<String>, id: String, change: Favor
     FavoriteChange.Remove -> current - id
     FavoriteChange.Toggle -> if (id in current) current - id else current + id
 }
+internal fun removeFavoriteIds(current: Set<String>, removals: Set<String>): Set<String> =
+    if (removals.isEmpty()) current else current - removals
 
 @Singleton
 class DataStoreFavoritesRepository @Inject constructor(
@@ -32,6 +37,7 @@ class DataStoreFavoritesRepository @Inject constructor(
 ) : FavoritesRepository {
     private val idsKey = stringSetPreferencesKey("favorite_document_ids")
     private val operations = ConcurrentHashMap.newKeySet<String>()
+    private val mutationMutex = Mutex()
     override val favoriteIds: Flow<Set<String>> = context.favoritesDataStore.data
         .map { preferences -> preferences[idsKey]?.toSet().orEmpty() }
         .catch { error ->
@@ -47,10 +53,12 @@ class DataStoreFavoritesRepository @Inject constructor(
         if (!operations.add(documentId)) return Result.failure(FavoriteOperationInProgressException())
         return try {
             var selected = false
-            context.favoritesDataStore.edit { preferences ->
-                val current = preferences[idsKey]?.toSet().orEmpty()
-                selected = documentId !in current
-                preferences[idsKey] = applyFavoriteChange(current, documentId, FavoriteChange.Toggle)
+            mutationMutex.withLock {
+                context.favoritesDataStore.edit { preferences ->
+                    val current = preferences[idsKey]?.toSet().orEmpty()
+                    selected = documentId !in current
+                    preferences[idsKey] = applyFavoriteChange(current, documentId, FavoriteChange.Toggle)
+                }
             }
             trace("toggle", true, documentId, favoriteIds.first().size, null)
             Result.success(selected)
@@ -62,6 +70,28 @@ class DataStoreFavoritesRepository @Inject constructor(
         }
     }
 
+    override suspend fun removeFavorites(documentIds: Set<String>): Result<Int> {
+        if (documentIds.isEmpty()) return Result.success(0)
+        return try {
+            var removed = 0
+            mutationMutex.withLock {
+                context.favoritesDataStore.edit { preferences ->
+                    val current = preferences[idsKey]?.toSet().orEmpty()
+                    val updated = removeFavoriteIds(current, documentIds)
+                    removed = current.size - updated.size
+                    if (removed > 0) preferences[idsKey] = updated
+                }
+            }
+            trace("bulk_remove", true, "bulk", removed, null)
+            Result.success(removed)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            trace("bulk_remove", false, "bulk", null, error)
+            Result.failure(error)
+        }
+    }
+
     private suspend fun update(
         operation: String,
         documentId: String,
@@ -70,9 +100,11 @@ class DataStoreFavoritesRepository @Inject constructor(
         if (!operations.add(documentId)) return Result.failure(FavoriteOperationInProgressException())
         return try {
             var updated: Set<String> = emptySet()
-            context.favoritesDataStore.edit { preferences ->
-                updated = transform(preferences[idsKey]?.toSet().orEmpty())
-                preferences[idsKey] = updated
+            mutationMutex.withLock {
+                context.favoritesDataStore.edit { preferences ->
+                    updated = transform(preferences[idsKey]?.toSet().orEmpty())
+                    preferences[idsKey] = updated
+                }
             }
             trace(operation, true, documentId, updated.size, null)
             Result.success(updated)

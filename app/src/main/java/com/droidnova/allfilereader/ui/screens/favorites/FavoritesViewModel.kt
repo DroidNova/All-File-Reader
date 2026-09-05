@@ -25,6 +25,16 @@ data class FavoritesUiState(
     val updatesInProgress: Set<String> = emptySet()
 )
 
+internal fun favoritesDocumentState(
+    current: FavoritesUiState,
+    documents: List<DocumentFile>,
+    favoriteIds: Set<String>
+): FavoritesUiState = current.copy(
+    documents = documents.filter { it.id in favoriteIds && DocumentClassifier.isVisibleDocument(it) }
+        .distinctBy(DocumentFile::id),
+    savedFavoriteCount = favoriteIds.size
+)
+
 @HiltViewModel
 class FavoritesViewModel @Inject constructor(
     private val documentsRepository: DocumentRepository,
@@ -38,9 +48,9 @@ class FavoritesViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             combine(documentsRepository.documents, favoritesRepository.favoriteIds) { documents, ids ->
-                ids to documents.filter { it.id in ids && DocumentClassifier.isVisibleDocument(it) }.distinctBy(DocumentFile::id)
-            }.collect { (ids, available) ->
-                _uiState.value = _uiState.value.copy(documents = available, savedFavoriteCount = available.size)
+                documents to ids
+            }.collect { (documents, ids) ->
+                _uiState.value = favoritesDocumentState(_uiState.value, documents, ids)
             }
         }
     }
