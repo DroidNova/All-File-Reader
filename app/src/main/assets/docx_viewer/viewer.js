@@ -1,33 +1,20 @@
 'use strict';
-const host = document.getElementById('document');
-const state = { status: 'loading', page: 0, pages: 0, error: '' };
-const session = new URLSearchParams(location.search).get('session');
-function reportPage() {
-  if (state.status !== 'ready') return;
-  const pages = [...host.querySelectorAll('.docx-wrapper > section.docx')];
-  if (!pages.length) { state.page = 0; state.pages = 0; return; }
-  const y = innerHeight * .35;
-  let selected = pages.findIndex(p => { const r=p.getBoundingClientRect(); return r.top <= y && r.bottom >= y; });
-  if (selected < 0) selected = pages.findIndex(p => p.getBoundingClientRect().bottom > 0);
-  state.page = Math.max(1, selected + 1); state.pages = pages.length;
-}
-window.viewerState = () => JSON.stringify(state);
-window.fitWidth = () => {
-  const page = host.querySelector('section.docx'); if (!page) return;
-  host.style.zoom = Math.min(1, Math.max(.1, (innerWidth - 16) / page.offsetWidth));
-  scrollTo(0, 0); reportPage();
-};
-addEventListener('scroll', reportPage, {passive:true});
-addEventListener('resize', reportPage, {passive:true});
-(async()=>{try{
-  if(!session || !/^[a-f0-9]{48}$/.test(session)) throw Error('invalid-session');
-  const response=await fetch(`/session/${session}/document.docx`,{cache:'no-store',credentials:'omit'});
-  if(!response.ok) throw Error('document-unavailable');
-  const data=await response.arrayBuffer();
-  await Promise.race([
-    docx.renderAsync(data,host,null,{renderAltChunks:false,breakPages:true,ignoreLastRenderedPageBreak:false}),
-    new Promise((_,reject)=>setTimeout(()=>reject(Error('timeout')),30000))
-  ]);
-  state.status='ready'; fitWidth(); reportPage();
-}catch(e){state.status='error';state.error=e && e.message==='timeout'?'timeout':'render';host.textContent='This Word document could not be rendered.'}
-})();
+const host=document.getElementById('document');
+const params=new URLSearchParams(location.search),session=params.get('session');
+const highlightLimit=Math.max(50,Math.min(1000,Number(params.get('highlights'))||500));
+const state={status:'loading',stage:'viewer_loaded',progress:1,page:0,pages:0,searchCurrent:0,searchTotal:0,searchCapped:false,error:''};
+let observer=null,searchGeneration=0,highlights=[],activeMatch=-1,pageFrame=0,disposed=false;
+const controller=new AbortController();
+window.viewerState=()=>JSON.stringify(state);
+function advance(stage){state.stage=stage;state.progress++}
+function notifyNative(){try{window.DocxBridge?.update(session,state.page,state.pages,state.searchCurrent,state.searchTotal,state.searchCapped)}catch(_){}}
+function reportPage(){pageFrame=0;if(state.status!=='ready')return;const pages=host.querySelectorAll('.docx-wrapper > section.docx');if(!pages.length){state.page=0;state.pages=0;return}const y=innerHeight*.35;let selected=-1;for(let i=0;i<pages.length;i++){const r=pages[i].getBoundingClientRect();if(r.top<=y&&r.bottom>=y){selected=i;break}if(selected<0&&r.bottom>0)selected=i}state.page=Math.max(1,selected+1);state.pages=pages.length;notifyNative()}
+function schedulePage(){if(!pageFrame)pageFrame=requestAnimationFrame(reportPage)}
+window.fitWidth=()=>{const page=host.querySelector('section.docx');if(!page)return;host.style.zoom=Math.min(1,Math.max(.1,(innerWidth-16)/page.offsetWidth));scrollTo(0,0);reportPage()};
+function clearHighlights(){searchGeneration++;for(const mark of highlights){const parent=mark.parentNode;if(parent){parent.replaceChild(document.createTextNode(mark.textContent||''),mark);parent.normalize()}}highlights=[];activeMatch=-1;state.searchCurrent=0;state.searchTotal=0;state.searchCapped=false}
+function selectMatch(index){if(!highlights.length)return;activeMatch=(index+highlights.length)%highlights.length;highlights.forEach((m,i)=>m.classList.toggle('active',i===activeMatch));highlights[activeMatch].scrollIntoView({block:'center',inline:'nearest'});state.searchCurrent=activeMatch+1;notifyNative()}
+window.nextSearch=direction=>selectMatch(activeMatch+(direction<0?-1:1));
+window.searchDocument=query=>{clearHighlights();notifyNative();const operation=searchGeneration;const needle=String(query||'').slice(0,256).toLocaleLowerCase();if(!needle)return;const walker=document.createTreeWalker(host,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const p=n.parentElement;if(!p||p.closest('script,style,mark.docx-search')||!(n.nodeValue||'').toLocaleLowerCase().includes(needle))return NodeFilter.FILTER_REJECT;return NodeFilter.FILTER_ACCEPT}});const nodes=[];while(nodes.length<highlightLimit+1){const n=walker.nextNode();if(!n)break;nodes.push(n)}state.searchCapped=nodes.length>highlightLimit;const selected=nodes.slice(0,highlightLimit);let offset=0;function chunk(){if(operation!==searchGeneration||disposed)return;const end=Math.min(selected.length,offset+40);for(;offset<end;offset++){const node=selected[offset],text=node.nodeValue||'',at=text.toLocaleLowerCase().indexOf(needle);if(at<0||!node.parentNode)continue;const mark=document.createElement('mark');mark.className='docx-search';mark.textContent=text.slice(at,at+needle.length);const fragment=document.createDocumentFragment();fragment.append(document.createTextNode(text.slice(0,at)),mark,document.createTextNode(text.slice(at+needle.length)));node.parentNode.replaceChild(fragment,node);highlights.push(mark)}state.searchTotal=highlights.length;if(offset<selected.length)setTimeout(chunk,0);else if(highlights.length)selectMatch(0);else notifyNative()}chunk()};
+function cleanup(){if(disposed)return;disposed=true;searchGeneration++;observer?.disconnect();observer=null;controller.abort();clearHighlights();removeEventListener('scroll',schedulePage);removeEventListener('resize',schedulePage);if(pageFrame)cancelAnimationFrame(pageFrame)}
+window.addEventListener('pagehide',cleanup,{once:true});addEventListener('scroll',schedulePage,{passive:true});addEventListener('resize',schedulePage,{passive:true});
+(async()=>{try{if(!session||!/^[a-f0-9]{48}$/.test(session))throw Error('contract');advance('document_fetch_started');const response=await fetch(`/session/${session}/document.docx`,{cache:'no-store',credentials:'omit',signal:controller.signal});if(!response.ok)throw Error('fetch');let data=await response.arrayBuffer();advance('document_fetch_complete');advance('render_started');observer=new MutationObserver(records=>{if(records.length)advance('render_dom_progress')});observer.observe(host,{childList:true,subtree:true});await docx.renderAsync(data,host,null,{renderAltChunks:false,breakPages:true,ignoreLastRenderedPageBreak:false});data=null;observer.disconnect();observer=null;advance('render_complete');const pages=host.querySelectorAll('.docx-wrapper > section.docx');if(!pages.length)throw Error('zero-pages');reportPage();advance('page_detection_complete');state.status='ready';fitWidth()}catch(error){if(disposed||error?.name==='AbortError')return;observer?.disconnect();observer=null;state.status='error';state.error=error?.message==='zero-pages'?'empty':'render';advance('render_failed');host.textContent='This Word document could not be rendered.'}})();

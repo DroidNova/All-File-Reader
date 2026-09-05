@@ -62,6 +62,11 @@
 <string name="word_empty_message">This Word document has no readable content.</string>
 <string name="word_unsupported">Word format not supported</string>
 <string name="word_legacy_doc_message">The older .doc format is not supported yet. Please use a .docx file.</string>
+<string name="word_too_large_message">This document is too large to open safely on this device.</string>
+<string name="word_too_complex_message">This document is too complex to display safely on this device.</string>
+<string name="word_incomplete_message">This document is damaged or incomplete.</string>
+<string name="word_stalled_message">The document is taking too long to respond.</string>
+<string name="word_render_failure_message">The document could not be displayed.</string>
 <string name="word_encrypted_message">This encrypted or unsupported Word document can’t be opened.</string>
 <string name="word_cannot_open">Word document can’t be opened</string>
 <string name="word_corrupted_message">This Word document is damaged or is not a valid DOCX file.</string>
