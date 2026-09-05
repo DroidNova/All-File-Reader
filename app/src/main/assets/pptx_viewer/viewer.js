@@ -14,7 +14,7 @@ const mountedSlides = new Map();
 const visibleRatios = new Map();
 let matches = [];
 const state = {
-  status: "loading", slide: 1, slides: 0,
+  status: "loading", stage: "viewer_loaded", progress: 0, slide: 1, slides: 0,
   query: "", searching: false, matchCount: 0, activeMatchIndex: -1,
   searchErrorCode: "",
 };
@@ -47,6 +47,8 @@ function scheduleActiveSlide() {
 }
 function onSlideRendered(event) {
   const { index, element } = event.detail;
+  state.progress++;
+  if (state.stage === "render_started") state.stage = "first_slide_rendered";
   mountedSlides.set(index, element);
   observer?.observe(element);
   scheduleActiveSlide();
@@ -156,24 +158,28 @@ function moveMatch(delta) {
 
 async function open() {
   try {
+    state.stage = "document_fetch_started";
     const response = await fetch(`/presentation/${new URLSearchParams(location.search).get("session")}/document.pptx`, { credentials: "omit", cache: "no-store" });
     if (!response.ok) throw new Error("document");
     const arrayBuffer = await response.arrayBuffer();
     if (destroyed) return;
+    state.stage = "document_fetch_complete";
     createObserver();
     viewer = new PptxViewer(slidesHost, { fitMode: "contain", pdfjs: false, zipLimits: RECOMMENDED_ZIP_LIMITS, scrollContainer: scrollHost });
     viewer.on("sliderendered", onSlideRendered).on("slideunmounted", onSlideUnmounted).on("slidechange", onSlideChange);
+    state.stage = "render_started";
     await viewer.open(arrayBuffer, { renderMode: "list", lazySlides: true, lazyMedia: true, listOptions: { windowed: true, initialSlides: 4, batchSize: 4 } });
     state.slides = viewer.slideCount;
     state.slide = state.slides > 0 ? 1 : 0;
     state.status = "ready";
+    state.stage = "render_complete";
     for (const index of viewer.getMountedSlides()) {
       // sliderendered normally populated the map; this fallback only schedules a recalculation.
       if (index === 0) setActiveSlide(0);
     }
     scheduleActiveSlide();
   } catch (error) {
-    state.status = "error"; state.searchErrorCode = "RENDER_FAILED";
+    state.status = "error"; state.stage = "render_failed"; state.searchErrorCode = "RENDER_FAILED";
     console.error("PPTX render failed", error?.name || "Error");
   }
 }
