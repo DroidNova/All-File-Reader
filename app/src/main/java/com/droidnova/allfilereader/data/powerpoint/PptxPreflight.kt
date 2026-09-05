@@ -78,9 +78,13 @@ class PptxPreflight(
     private suspend fun copy(uri: Uri, output: File): Long {
         val source = try { resolver?.openInputStream(uri) } catch (error: SecurityException) { throw error }
             ?: throw FileNotFoundException()
+        // Capture the suspend caller's context before entering copyPptxStream's
+        // regular callback. Accessing coroutineContext from inside that callback
+        // is rejected by the compiler because the callback itself is not suspend.
+        val copyContext = coroutineContext
         try {
             source.use { input ->
-                return copyPptxStream(input, output, budget.maxCompressedBytes) { coroutineContext.ensureActive() }
+                return copyPptxStream(input, output, budget.maxCompressedBytes) { copyContext.ensureActive() }
             }
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (error: PptxPreflightException) { throw error }
