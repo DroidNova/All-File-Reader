@@ -1,6 +1,7 @@
 package com.droidnova.allfilereader.ui.screens.txt
 
 import android.content.Context
+import android.app.ActivityManager
 import android.net.Uri
 import android.util.Log
 import androidx.datastore.preferences.core.booleanPreferencesKey
@@ -32,11 +33,22 @@ sealed interface TxtReaderContent {
     data object NotFound : TxtReaderContent
     data object AccessDenied : TxtReaderContent
     data object UnsupportedEncoding : TxtReaderContent
+    data object MalformedText : TxtReaderContent
     data object Binary : TxtReaderContent
     data object TooLarge : TxtReaderContent
+    data object InsufficientStorage : TxtReaderContent
     data object ReadError : TxtReaderContent
 }
-data class TxtSearchState(val active: Boolean = false, val searching: Boolean = false, val query: String = "", val matches: List<TextMatch> = emptyList(), val selected: Int = -1, val truncated: Boolean = false)
+data class TxtSearchState(
+    val active: Boolean = false,
+    val searching: Boolean = false,
+    val query: String = "",
+    val effectiveQuery: String = "",
+    val generation: Long = 0L,
+    val matches: List<TextMatch> = emptyList(),
+    val selected: Int = -1,
+    val truncated: Boolean = false
+)
 data class TxtReaderUiState(val fileName: String? = null, val content: TxtReaderContent = TxtReaderContent.Loading(), val isIndexingInBackground: Boolean = false, val fontSize: Int = 16, val wordWrap: Boolean = true, val search: TxtSearchState = TxtSearchState())
 
 @HiltViewModel
@@ -47,7 +59,11 @@ class TxtReaderViewModel @Inject constructor(
     @ApplicationContext private val context: Context
 ) : ViewModel() {
     private val documentId = savedStateHandle.get<String>("documentId").orEmpty()
-    private val preparer = TextDocumentPreparer(context.contentResolver, context.cacheDir)
+    private val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    private val budget = TextReaderBudgetPolicy.forDevice(
+        TextReaderDeviceProfile(activityManager.memoryClass, activityManager.isLowRamDevice)
+    )
+    private val preparer = TextDocumentPreparer(context.contentResolver, context.cacheDir, budget)
     private val _uiState = MutableStateFlow(TxtReaderUiState())
     val uiState: StateFlow<TxtReaderUiState> = _uiState.asStateFlow()
     private var store: TextDocumentStore? = null
@@ -55,6 +71,7 @@ class TxtReaderViewModel @Inject constructor(
     private var searchJob: Job? = null
     private val loadGate = TxtLoadRequestGate()
     private var loadGeneration = 0L
+    private var searchGeneration = 0L
 
     init {
         viewModelScope.launch {
@@ -76,16 +93,41 @@ class TxtReaderViewModel @Inject constructor(
     }
     fun setQuery(query: String) {
         val boundedQuery = query.take(TxtLimits.MAX_QUERY_CHARACTERS)
-        _uiState.update { it.copy(search = it.search.copy(query = boundedQuery, searching = boundedQuery.isNotEmpty(), matches = emptyList(), selected = -1, truncated = false)) }
         searchJob?.cancel()
+        val generation = ++searchGeneration
+        _uiState.update {
+            it.copy(search = it.search.copy(
+                query = boundedQuery,
+                effectiveQuery = "",
+                generation = generation,
+                searching = boundedQuery.isNotEmpty(),
+                matches = emptyList(),
+                selected = -1,
+                truncated = false
+            ))
+        }
         if (boundedQuery.isEmpty()) return
         searchJob = viewModelScope.launch {
             delay(300)
             // Content can be read as soon as chunk one is ready, but a complete search waits
             // for the independently running indexer so later chunks are not missed.
             openJob?.join()
-            val result = withContext(Dispatchers.Default) { store?.search(boundedQuery) ?: TextSearchResult(emptyList(), false) }
-            _uiState.update { state -> if (state.search.query != boundedQuery) state else state.copy(search = state.search.copy(searching = false, matches = result.matches, selected = if (result.matches.isEmpty()) -1 else 0, truncated = result.truncated)) }
+            _uiState.update { state ->
+                if (state.search.generation != generation) state
+                else state.copy(search = state.search.copy(effectiveQuery = boundedQuery))
+            }
+            val result = withContext(Dispatchers.IO) {
+                store?.search(boundedQuery) ?: TextSearchResult(emptyList(), false)
+            }
+            _uiState.update { state ->
+                if (state.search.generation != generation) state
+                else state.copy(search = state.search.copy(
+                    searching = false,
+                    matches = result.matches,
+                    selected = if (result.matches.isEmpty()) -1 else 0,
+                    truncated = result.truncated
+                ))
+            }
         }
     }
     fun nextMatch() = moveMatch(1)
@@ -123,6 +165,7 @@ class TxtReaderViewModel @Inject constructor(
                 phase = "metadata"
                 updateStage(generation, TxtLoadingStage.ReadingMetadata)
                 if (document.category != DocumentCategory.Text) throw UnsupportedTextEncodingException()
+                // Provider metadata is only an early-rejection hint; the streaming counter is authoritative.
                 if (document.sizeBytes > TxtLimits.MAX_FILE_BYTES) throw TextFileTooLargeException()
                 trace("metadata read completed")
                 phase = "stream"
@@ -208,8 +251,10 @@ internal fun failureContent(error: Exception): TxtReaderContent = when (error) {
     is SecurityException -> TxtReaderContent.AccessDenied
     is FileNotFoundException -> TxtReaderContent.NotFound
     is BinaryTextException -> TxtReaderContent.Binary
-    is CharacterCodingException, is UnsupportedTextEncodingException -> TxtReaderContent.UnsupportedEncoding
+    is CharacterCodingException -> TxtReaderContent.MalformedText
+    is UnsupportedTextEncodingException -> TxtReaderContent.UnsupportedEncoding
     is TextFileTooLargeException -> TxtReaderContent.TooLarge
+    is InsufficientTextStorageException -> TxtReaderContent.InsufficientStorage
     else -> TxtReaderContent.ReadError
 }
 
@@ -232,8 +277,11 @@ private fun TxtReaderContent.traceName(): String = when (this) {
     TxtReaderContent.Empty -> "EMPTY"
     TxtReaderContent.NotFound -> "FILE_MISSING"
     TxtReaderContent.AccessDenied -> "PERMISSION_DENIED"
-    TxtReaderContent.UnsupportedEncoding, TxtReaderContent.Binary -> "UNSUPPORTED_ENCODING"
+    TxtReaderContent.UnsupportedEncoding -> "UNSUPPORTED_ENCODING"
+    TxtReaderContent.MalformedText -> "MALFORMED_TEXT"
+    TxtReaderContent.Binary -> "LIKELY_BINARY"
     TxtReaderContent.TooLarge -> "FILE_TOO_LARGE"
+    TxtReaderContent.InsufficientStorage -> "INSUFFICIENT_STORAGE"
     TxtReaderContent.ReadError -> "FAILURE"
 }
 
