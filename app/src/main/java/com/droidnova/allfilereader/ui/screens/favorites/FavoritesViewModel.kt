@@ -3,6 +3,7 @@ package com.droidnova.allfilereader.ui.screens.favorites
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.droidnova.allfilereader.domain.model.DocumentFile
+import com.droidnova.allfilereader.domain.model.DocumentClassifier
 import com.droidnova.allfilereader.domain.repository.DocumentRepository
 import com.droidnova.allfilereader.domain.repository.FavoritesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -37,9 +38,9 @@ class FavoritesViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             combine(documentsRepository.documents, favoritesRepository.favoriteIds) { documents, ids ->
-                ids to documents.filter { it.id in ids }.distinctBy(DocumentFile::id)
+                ids to documents.filter { it.id in ids && DocumentClassifier.isVisibleDocument(it) }.distinctBy(DocumentFile::id)
             }.collect { (ids, available) ->
-                _uiState.value = _uiState.value.copy(documents = available, savedFavoriteCount = ids.size)
+                _uiState.value = _uiState.value.copy(documents = available, savedFavoriteCount = available.size)
             }
         }
     }

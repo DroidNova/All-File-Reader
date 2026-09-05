@@ -47,7 +47,6 @@ import com.droidnova.allfilereader.ui.screens.excel.ExcelReaderScreen
 import com.droidnova.allfilereader.ui.screens.powerpoint.PowerPointReaderScreen
 import kotlinx.coroutines.launch
 import androidx.compose.ui.platform.LocalContext
-import com.droidnova.allfilereader.ui.screens.search.SearchScreen
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -160,7 +159,16 @@ fun AllFileReaderApp(
                     },
                     onFavoritesSelected = {
                         navController.navigate(FavoritesRoute)
-                    }, onSearch = { navController.navigate(SearchRoute) { launchSingleTop=true } }
+                    }, onSearch = {
+                        navController.navigate(RecentRoute) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                        navController.currentBackStackEntry?.savedStateHandle?.set(
+                            com.droidnova.allfilereader.ui.screens.files.FilesViewModel.ACTIVATE_KEY, true
+                        )
+                    }
                 )
             }
             composable<RecentRoute> {
@@ -187,7 +195,6 @@ fun AllFileReaderApp(
                     onDocumentClick = onDocumentClick
                 )
             }
-            composable<SearchRoute> { SearchScreen(onBack={navController.popBackStack()},onDocumentClick=onDocumentClick) }
             composable<PdfReaderRoute> {
                 PdfReaderScreen(onBack = { navController.popBackStack() })
             }

@@ -3,6 +3,14 @@ package com.droidnova.allfilereader.domain.model
 import java.util.Locale
 
 object DocumentClassifier {
+    /** Single product policy for metadata that may be exposed by document UIs. */
+    fun isVisibleDocument(category: DocumentCategory): Boolean = category == DocumentCategory.Pdf ||
+        category == DocumentCategory.Word || category == DocumentCategory.Excel ||
+        category == DocumentCategory.PowerPoint || category == DocumentCategory.Text
+
+    fun isVisibleDocument(document: DocumentFile): Boolean = isVisibleDocument(
+        classify(document.mimeType, document.extension ?: extensionOf(document.displayName))
+    )
     /** Formats intentionally exposed to external ACTION_VIEW callers. */
     val incomingMimeTypes: Set<String> = setOf(
         "application/pdf", "text/plain",

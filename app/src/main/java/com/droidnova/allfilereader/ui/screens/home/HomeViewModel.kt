@@ -24,7 +24,8 @@ sealed interface HomeCountState {
 }
 
 internal fun availableFavoriteCount(documents: List<DocumentFile>, favoriteIds: Set<String>): Int =
-    documents.asSequence().map(DocumentFile::id).distinct().count { it in favoriteIds }
+    documents.asSequence().filter(com.droidnova.allfilereader.domain.model.DocumentClassifier::isVisibleDocument)
+        .map(DocumentFile::id).distinct().count { it in favoriteIds }
 
 data class HomeUiState(
     val counts: HomeCountState = HomeCountState.Loading,
@@ -35,7 +36,8 @@ data class HomeUiState(
     val availableFavoriteCount: Int = 0
 ) {
     fun count(category: DocumentCategory?): Int? = (counts as? HomeCountState.Available)?.documents?.let { documents ->
-        if (category == null) documents.size else documents.count { it.category == category }
+        if (category == null) documents.count(com.droidnova.allfilereader.domain.model.DocumentClassifier::isVisibleDocument)
+        else documents.count { it.category == category && com.droidnova.allfilereader.domain.model.DocumentClassifier.isVisibleDocument(it) }
     }
 }
 

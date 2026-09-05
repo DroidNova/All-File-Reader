@@ -48,6 +48,7 @@ class MediaStoreDocumentRepository @Inject constructor(
             SnapshotPagingSource {
                 getDocuments(pagingRefreshRequested.getAndSet(false))
                     .asSequence()
+                    .filter(DocumentClassifier::isVisibleDocument)
                     .filter { category == null || it.category == category }
                     .distinctBy(DocumentFile::id)
                     .sortedWith(compareByDescending<DocumentFile> { it.lastModifiedEpochMillis }.thenByDescending { it.id })
@@ -116,7 +117,8 @@ class MediaStoreDocumentRepository @Inject constructor(
                 }
                 val extension = DocumentClassifier.extensionOf(file.name)
                 val category = DocumentClassifier.classify(null, extension)
-                // Keep all discovered file metadata: routing, not scanning, decides renderability.
+                // Traversal continues through every directory, but non-document metadata is discarded.
+                if (!DocumentClassifier.isVisibleDocument(category)) continue
                 val path = runCatching { file.canonicalPath }.getOrNull() ?: continue
                 found[path] = DocumentFile(
                     id = DocumentIds.fromStorageLocation(path), displayName = file.name, uri = file.toURI().toString(),
