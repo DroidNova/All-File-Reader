@@ -52,11 +52,6 @@
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
                 <data android:mimeType="application/vnd.ms-excel" />
-                <data android:mimeType="application/vnd.ms-excel.sheet.macroEnabled.12" />
-                <data android:mimeType="application/vnd.ms-excel.sheet.binary.macroEnabled.12" />
-                <data android:mimeType="application/vnd.oasis.opendocument.spreadsheet" />
-                <data android:mimeType="text/csv" />
-                <data android:mimeType="text/tab-separated-values" />
                 <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
             </intent-filter>
         </activity>

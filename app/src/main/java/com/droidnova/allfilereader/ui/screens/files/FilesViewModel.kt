@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 enum class RecentDocumentFilter(val category: DocumentCategory?) {
     All(null), Pdf(DocumentCategory.Pdf), Word(DocumentCategory.Word), Excel(DocumentCategory.Excel),
     PowerPoint(DocumentCategory.PowerPoint), Text(DocumentCategory.Text);
-    fun matches(document:DocumentFile):Boolean { val classified=DocumentClassifier.classify(document.mimeType,document.extension?:DocumentClassifier.extensionOf(document.displayName));return DocumentClassifier.isVisibleDocument(classified)&&(category==null||classified==category) }
+    fun matches(document:DocumentFile):Boolean { val classified=DocumentClassifier.classificationOf(document);return DocumentClassifier.isVisibleDocument(classified)&&(category==null||classified.category==category) }
 }
 
 data class FilesUiState(val hasAccess:Boolean,val permissionPromptDismissed:Boolean=false,

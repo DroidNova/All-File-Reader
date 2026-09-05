@@ -85,7 +85,7 @@ class IncomingDocumentViewModel @Inject constructor(
                 _state.value = when (result) {
                     is IncomingResolution.Ready -> {
                         repository.rememberDocument(result.document)
-                        trace("navigation_stage=ready selected_reader=${result.destination.name}")
+                        trace("navigation_stage=ready selected_reader=${result.destination?.name ?: "unsupported"}")
                         IncomingUiState.Open(result.document)
                     }
                     is IncomingResolution.Error -> IncomingUiState.Failure(result.reason)
