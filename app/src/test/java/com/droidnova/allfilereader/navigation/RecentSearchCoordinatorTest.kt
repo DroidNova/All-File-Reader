@@ -6,8 +6,13 @@ import org.junit.Test
 class RecentSearchCoordinatorTest {
     @Test fun `request remains pending for a late destination collector`() {
         val coordinator = RecentSearchCoordinator()
-        val id = coordinator.request(SearchActivationSource.Home)
-        assertEquals(SearchActivationRequest(id, SearchActivationSource.Home), coordinator.pending.value)
+        val id = coordinator.request(SearchActivationSource.Home, resetCategoryToAll = true, clearQuery = true)
+        assertEquals(
+            SearchActivationRequest(id, SearchActivationSource.Home, resetCategoryToAll = true, clearQuery = true),
+            coordinator.pending.value
+        )
+        assertTrue(coordinator.pending.value!!.resetCategoryToAll)
+        assertTrue(coordinator.pending.value!!.clearQuery)
     }
 
     @Test fun `acknowledgement is id safe and consumes exactly once`() {
