@@ -11,6 +11,7 @@ import com.droidnova.allfilereader.domain.model.DocumentFile
 import com.droidnova.allfilereader.domain.model.DocumentIds
 import com.droidnova.allfilereader.domain.reader.DocumentReaderDestination
 import com.droidnova.allfilereader.domain.reader.DocumentReaderResolver
+import com.droidnova.allfilereader.domain.reader.DocumentOpenResult
 import java.io.FileNotFoundException
 import java.util.Locale
 
@@ -63,13 +64,12 @@ class IncomingDocumentResolver(private val contentResolver: ContentResolver) {
                 sizeBytes = metadata.size ?: -1L, lastModifiedEpochMillis = 0L,
                 category = category, isBookmarked = false
             )
-            val destination = DocumentReaderResolver.resolve(document)
-            if (destination == DocumentReaderDestination.Unsupported || destination == DocumentReaderDestination.LegacyWord) {
-                IncomingResolution.Error(IncomingError.Unsupported)
-            } else {
+            val decision = DocumentReaderResolver.resolve(document)
+            if (decision is DocumentOpenResult.Internal) {
+                val destination = decision.destination
                 trace("source_resolution stage=complete selected_reader=${destination.name} code=READY")
                 IncomingResolution.Ready(document, destination)
-            }
+            } else IncomingResolution.Error(IncomingError.Unsupported)
         } catch (error: SecurityException) {
             trace("source_resolution stage=read exception=${error.javaClass.simpleName} code=ACCESS_DENIED")
             IncomingResolution.Error(IncomingError.AccessDenied)

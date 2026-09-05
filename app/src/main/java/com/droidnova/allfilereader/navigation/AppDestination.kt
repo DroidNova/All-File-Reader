@@ -16,6 +16,7 @@ import kotlin.reflect.KClass
 @Serializable data class CategoryFilesRoute(val categoryId:String)
 @Serializable data object DirectoriesRoute
 @Serializable data object FavoritesRoute
+@Serializable data object SearchRoute
 @Serializable data class PdfReaderRoute(val documentId: String)
 @Serializable data class TxtReaderRoute(val documentId: String)
 @Serializable data class WordReaderRoute(val documentId: String)

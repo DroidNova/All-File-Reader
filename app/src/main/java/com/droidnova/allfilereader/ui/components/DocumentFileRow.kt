@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.droidnova.allfilereader.R
 import com.droidnova.allfilereader.domain.model.DocumentCategory
@@ -48,7 +49,8 @@ fun DocumentFileRow(
     isFavorite: Boolean = document.isBookmarked,
     favoriteEnabled: Boolean = true,
     onFavoriteToggle: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlightedName: AnnotatedString? = null
 ) {
     val type = document.extension?.uppercase(Locale.getDefault())
         ?: stringResource(document.category.labelResId())
@@ -74,7 +76,7 @@ fun DocumentFileRow(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = document.displayName,
+                    text = highlightedName ?: AnnotatedString(document.displayName),
                     style = MaterialTheme.typography.bodyLarge,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis

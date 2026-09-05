@@ -116,7 +116,7 @@ class MediaStoreDocumentRepository @Inject constructor(
                 }
                 val extension = DocumentClassifier.extensionOf(file.name)
                 val category = DocumentClassifier.classify(null, extension)
-                if (category !in supported) continue
+                // Keep all discovered file metadata: routing, not scanning, decides renderability.
                 val path = runCatching { file.canonicalPath }.getOrNull() ?: continue
                 found[path] = DocumentFile(
                     id = DocumentIds.fromStorageLocation(path), displayName = file.name, uri = file.toURI().toString(),
@@ -150,9 +150,5 @@ class MediaStoreDocumentRepository @Inject constructor(
         pagingRefreshRequested.set(false)
     }
 
-    private companion object {
-        val supported = setOf(DocumentCategory.Pdf, DocumentCategory.Word, DocumentCategory.Excel,
-            DocumentCategory.PowerPoint, DocumentCategory.Text)
-    }
 }
 class DocumentAccessException(cause: Throwable) : Exception(cause)
