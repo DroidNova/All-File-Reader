@@ -23,7 +23,7 @@ class PptxPreflightRegressionTest {
         catch (error: PptxPreflightException) { error.resultCode }
     }
     private fun budget(entries: Int = 100, entry: Long = 1024, total: Long = 4096, ratio: Double = 200.0) =
-        PptxRenderBudget(PptxBudgetCategory.LowRam, 4096, total, entry, entries, ratio, 120_000)
+        PptxRenderBudget(PptxBudgetCategory.LowRam, 4096, total, entry, entries, ratio, 120_000, 250)
 
     @Test fun validPptxPasses() { assertEquals("OK", code(pptx(required))) }
     @Test fun missingRequiredPartsAreDistinct() {

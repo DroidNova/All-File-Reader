@@ -8,5 +8,6 @@ interface FavoritesRepository {
     suspend fun isFavorite(documentId: String): Boolean
     suspend fun add(documentId: String): Result<Unit>
     suspend fun remove(documentId: String): Result<Unit>
+    suspend fun removeFavorites(documentIds: Set<String>): Result<Int>
     suspend fun toggle(documentId: String): Result<Boolean>
 }

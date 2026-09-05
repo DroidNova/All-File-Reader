@@ -17,6 +17,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -40,6 +43,7 @@ fun PowerPointReaderScreen(onBack: () -> Unit, vm: PowerPointReaderViewModel = h
     var query by remember { mutableStateOf("") }
     var current by remember { mutableIntStateOf(0) }
     var total by remember { mutableIntStateOf(0) }
+    var limited by remember { mutableStateOf(false) }
     var slide by remember { mutableIntStateOf(0) }
     var slides by remember { mutableIntStateOf(0) }
     var preparingLegacy by remember { mutableStateOf(false) }
@@ -65,6 +69,9 @@ fun PowerPointReaderScreen(onBack: () -> Unit, vm: PowerPointReaderViewModel = h
     BackHandler(search) { search = false; query = ""; web?.evaluateJavascript("pptxControl.clear()", null) }
     LaunchedEffect(query, search, state.phase) {
         if (search && state.phase == PptxPhase.Ready) {
+            current = 0; total = 0; limited = false
+            web?.evaluateJavascript("pptxControl.clear()", null)
+            if (query.isBlank()) return@LaunchedEffect
             kotlinx.coroutines.delay(250)
             web?.evaluateJavascript("pptxControl.search(${JSONObject.quote(query)})", null)
         }
@@ -73,7 +80,12 @@ fun PowerPointReaderScreen(onBack: () -> Unit, vm: PowerPointReaderViewModel = h
         Modifier.fillMaxSize(),
         topBar = {
             if (search) TopAppBar(
-                title = { TextField(query, { query = it }, singleLine = true, placeholder = { Text("Search slides") }, supportingText = { if (query.isNotEmpty()) Text(if (total == 0) "No matches" else "$current of $total") }) },
+                title = { TextField(query, { query = it }, singleLine = true, placeholder = { Text("Search slides") }, supportingText = { if (query.isNotEmpty()) {
+                    if (total == 0) Text("No matches") else if (limited) Text(
+                        stringResource(com.droidnova.allfilereader.R.string.pptx_search_count_limited, current, total),
+                        Modifier.semantics { contentDescription = context.getString(com.droidnova.allfilereader.R.string.pptx_search_count_limited_description, current, total) }
+                    ) else Text(stringResource(com.droidnova.allfilereader.R.string.pptx_search_count, current, total))
+                } }) },
                 navigationIcon = { IconButton(onClick = { search = false; query = ""; web?.evaluateJavascript("pptxControl.clear()", null) }) { Icon(Icons.Default.Close, "Close search") } },
                 actions = {
                     IconButton(enabled = total > 0, onClick = { web?.evaluateJavascript("pptxControl.previous()", null) }) { Icon(Icons.Default.KeyboardArrowUp, "Previous") }
@@ -93,8 +105,8 @@ fun PowerPointReaderScreen(onBack: () -> Unit, vm: PowerPointReaderViewModel = h
         Column(Modifier.fillMaxSize().padding(padding)) {
             val ready = state.ready
             if (ready != null && state.phase in setOf(PptxPhase.Preparing, PptxPhase.Rendering, PptxPhase.Ready)) {
-                PptxWeb(ready, Modifier.fillMaxWidth().weight(1f), { web = it }, { phase, sl, ss, c, t ->
-                    slide = sl; slides = ss; current = c; total = t; vm.viewerPhase(ready.token, phase)
+                PptxWeb(ready, Modifier.fillMaxWidth().weight(1f), { web = it }, { phase, sl, ss, c, t, more ->
+                    slide = sl; slides = ss; current = c; total = t; limited = more; vm.viewerPhase(ready.token, phase)
                 }, { reason -> vm.releaseReader(ready.token, reason) })
             } else if (state.phase in setOf(PptxPhase.Resolving, PptxPhase.Copying, PptxPhase.Validating)) {
                 LoadingMessage(state.phase)
@@ -111,12 +123,21 @@ fun PowerPointReaderScreen(onBack: () -> Unit, vm: PowerPointReaderViewModel = h
     }
 }
 
-private fun parse(raw: String, callback: (Int, Int, Int, Int) -> Unit) = runCatching {
-    val value = JSONObject(JSONArray("[$raw]").getString(0))
-    val count = value.optInt("matchCount")
-    val index = value.optInt("activeMatchIndex", -1)
-    callback(if (index >= 0) index + 1 else 0, count, value.optInt("slide", 1), value.optInt("slides"))
+internal data class PptxViewerStatus(val current: Int, val storedCount: Int, val hasMore: Boolean, val slide: Int, val slides: Int, val searchGeneration: Long)
+
+internal fun validatedPptxViewerStatus(currentIndex: Int, storedCount: Int, hasMore: Boolean, slide: Int, slides: Int, searchGeneration: Long, maximum: Int): PptxViewerStatus? {
+    if (maximum !in 1..com.droidnova.allfilereader.data.powerpoint.PptxRenderBudgetPolicy.HARD_MAX_STORED_SEARCH_MATCHES) return null
+    if (storedCount !in 0..maximum || searchGeneration < 0) return null
+    if (currentIndex < -1 || currentIndex >= storedCount || (storedCount == 0 && currentIndex != -1)) return null
+    if (hasMore && storedCount != maximum) return null
+    if (slide < 0 || slides < 0 || slide > slides.coerceAtLeast(1)) return null
+    return PptxViewerStatus(if (currentIndex >= 0) currentIndex + 1 else 0, storedCount, hasMore, slide, slides, searchGeneration)
 }
+
+private fun parse(raw: String, maximum: Int): PptxViewerStatus? = runCatching {
+    val value = JSONObject(JSONArray("[$raw]").getString(0))
+    validatedPptxViewerStatus(value.optInt("activeMatchIndex", -1), value.optInt("matchCount", -1), value.optBoolean("hasMoreMatches"), value.optInt("slide", 1), value.optInt("slides"), value.optLong("searchGeneration", -1), maximum)
+}.getOrNull()
 
 @Composable private fun ErrorMessage(phase: PptxPhase, back: () -> Unit, retry: () -> Unit) {
     val message = when (phase) {
@@ -145,7 +166,7 @@ private fun parse(raw: String, callback: (Int, Int, Int, Int) -> Unit) = runCatc
     ready: PptxReady,
     modifier: Modifier,
     onWeb: (WebView?) -> Unit,
-    onPhase: (PptxPhase, Int, Int, Int, Int) -> Unit,
+    onPhase: (PptxPhase, Int, Int, Int, Int, Boolean) -> Unit,
     onRelease: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -181,10 +202,11 @@ private fun parse(raw: String, callback: (Int, Int, Int, Int) -> Unit) = runCatc
             val handler = Handler(Looper.getMainLooper())
             val watchdog = RendererProgressWatchdog(ready.stallMillis, SystemClock.uptimeMillis())
             var rendered = false
+            var latestSearchGeneration = -1L
             fun poll() {
                 if (!active.get()) return
                 if (!rendered && watchdog.isStalled(SystemClock.uptimeMillis())) {
-                    active.set(false); currentPhase(PptxPhase.RendererStalled, 0, 0, 0, 0); stopLoading(); return
+                    active.set(false); currentPhase(PptxPhase.RendererStalled, 0, 0, 0, 0, false); stopLoading(); return
                 }
                 evaluateJavascript("pptxControl.status()") { raw ->
                     if (!active.get()) return@evaluateJavascript
@@ -192,8 +214,8 @@ private fun parse(raw: String, callback: (Int, Int, Int, Int) -> Unit) = runCatc
                         val stage = value.optString("stage")
                         watchdog.observe(stage, value.optLong("progress", -1), SystemClock.uptimeMillis())
                         when (value.optString("status")) {
-                            "ready" -> { rendered = true; watchdog.stop(); parse(raw) { c, t, sl, ss -> currentPhase(PptxPhase.Ready, sl.coerceAtLeast(1), ss, c, t) }; handler.postDelayed({ poll() }, 500) }
-                            "error" -> { active.set(false); watchdog.stop(); currentPhase(PptxPhase.RendererFailure, 0, 0, 0, 0) }
+                            "ready" -> { rendered = true; watchdog.stop(); parse(raw, ready.maxStoredSearchMatches)?.let { status -> if (status.searchGeneration >= latestSearchGeneration) { latestSearchGeneration = status.searchGeneration; currentPhase(PptxPhase.Ready, status.slide.coerceAtLeast(1), status.slides, status.current, status.storedCount, status.hasMore) } }; handler.postDelayed({ poll() }, 500) }
+                            "error" -> { active.set(false); watchdog.stop(); currentPhase(PptxPhase.RendererFailure, 0, 0, 0, 0, false) }
                             else -> handler.postDelayed({ poll() }, 500)
                         }
                     }.onFailure { handler.postDelayed({ poll() }, 500) }
@@ -203,11 +225,11 @@ private fun parse(raw: String, callback: (Int, Int, Int, Int) -> Unit) = runCatc
                 override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse =
                     if (request.url.scheme == "https" && request.url.host == ORIGIN_HOST) loader.shouldInterceptRequest(request.url) ?: blocked() else blocked()
                 override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest) = true
-                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) { if (request.isForMainFrame) currentPhase(PptxPhase.RendererAssetFailure, 0, 0, 0, 0) }
-                override fun onPageFinished(view: WebView, url: String) { currentPhase(PptxPhase.Rendering, 0, 0, 0, 0); watchdog.observe("viewer_loaded", 0, SystemClock.uptimeMillis()); poll() }
-                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean { active.set(false); watchdog.stop(); currentPhase(if (detail.didCrash()) PptxPhase.RendererFailure else PptxPhase.InsufficientMemory, 0, 0, 0, 0); return true }
+                override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) { if (request.isForMainFrame) currentPhase(PptxPhase.RendererAssetFailure, 0, 0, 0, 0, false) }
+                override fun onPageFinished(view: WebView, url: String) { currentPhase(PptxPhase.Rendering, 0, 0, 0, 0, false); watchdog.observe("viewer_loaded", 0, SystemClock.uptimeMillis()); poll() }
+                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean { active.set(false); watchdog.stop(); currentPhase(if (detail.didCrash()) PptxPhase.RendererFailure else PptxPhase.InsufficientMemory, 0, 0, 0, 0, false); return true }
             }
-            loadUrl("https://$ORIGIN_HOST/assets/pptx_viewer/viewer.html?session=${ready.token}")
+            loadUrl("https://$ORIGIN_HOST/assets/pptx_viewer/viewer.html?session=${ready.token}&searchLimit=${ready.maxStoredSearchMatches}")
             onWeb(this)
         } },
         update = { onWeb(it) },
